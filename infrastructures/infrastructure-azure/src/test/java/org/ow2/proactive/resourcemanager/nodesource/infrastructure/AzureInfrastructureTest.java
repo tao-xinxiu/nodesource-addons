@@ -78,7 +78,7 @@ public class AzureInfrastructureTest {
         MockitoAnnotations.initMocks(this);
         azureInfrastructure = new AzureInfrastructure();
         azureInfrastructure.setRmDbManager(dbManager);
-        azureInfrastructure.initializeRuntimeVariables();
+        azureInfrastructure.initializePersistedInfraVariables();
     }
 
     @Test

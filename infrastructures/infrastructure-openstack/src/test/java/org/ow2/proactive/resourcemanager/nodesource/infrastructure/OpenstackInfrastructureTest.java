@@ -77,7 +77,7 @@ public class OpenstackInfrastructureTest {
         MockitoAnnotations.initMocks(this);
         openstackInfrastructure = new OpenstackInfrastructure();
         openstackInfrastructure.setRmDbManager(dbManager);
-        openstackInfrastructure.initializeRuntimeVariables();
+        openstackInfrastructure.initializePersistedInfraVariables();
     }
 
     @Test
