@@ -29,11 +29,14 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import java.util.AbstractMap;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -77,6 +80,13 @@ public class AWSEC2InfrastructureTest {
         awsec2Infrastructure = new AWSEC2Infrastructure();
         awsec2Infrastructure.setRmDbManager(dbManager);
         awsec2Infrastructure.initializePersistedInfraVariables();
+        when(connectorIaasController.createAwsEc2KeyPair(anyString(),
+                                                         anyString(),
+                                                         anyString(),
+                                                         anyInt(),
+                                                         anyInt(),
+                                                         anyInt())).thenReturn(new AbstractMap.SimpleImmutableEntry<>("keyname",
+                                                                                                                      "privatekey"));
     }
 
     @Test
@@ -114,6 +124,9 @@ public class AWSEC2InfrastructureTest {
                                        "test.activeeon.com",
                                        "http://localhost:8088/connector-iaas",
                                        "aws-image",
+                                       "admin",
+                                       "keyname",
+                                       "privatekey",
                                        "2",
                                        "3",
                                        "wget -nv test.activeeon.com/rest/node.jar",
@@ -156,6 +169,9 @@ public class AWSEC2InfrastructureTest {
                                        "test.activeeon.com",
                                        "http://localhost:8088/connector-iaas",
                                        "aws-image",
+                                       "admin",
+                                       "keyname",
+                                       "privatekey",
                                        "2",
                                        "3",
                                        "wget -nv test.activeeon.com/rest/node.jar",
@@ -176,16 +192,19 @@ public class AWSEC2InfrastructureTest {
                                                           null,
                                                           true)).thenReturn("node_source_name");
 
-        when(connectorIaasController.createInstancesWithOptions("node_source_name",
-                                                                "node_source_name",
-                                                                "aws-image",
-                                                                2,
-                                                                1,
-                                                                512,
-                                                                "0.05",
-                                                                "default",
-                                                                "127.0.0.1",
-                                                                null)).thenReturn(Sets.newHashSet("123", "456"));
+        when(connectorIaasController.createAwsEc2InstancesWithOptions("node_source_name",
+                                                                      "node_source_name",
+                                                                      "aws-image",
+                                                                      2,
+                                                                      1,
+                                                                      512,
+                                                                      "0.05",
+                                                                      "default",
+                                                                      "127.0.0.1",
+                                                                      null,
+                                                                      "admin",
+                                                                      "keyname")).thenReturn(Sets.newHashSet("123",
+                                                                                                             "456"));
 
         awsec2Infrastructure.acquireNode();
 
@@ -197,18 +216,24 @@ public class AWSEC2InfrastructureTest {
                                                              null,
                                                              false);
 
-        verify(connectorIaasController).createInstancesWithOptions("node_source_name",
-                                                                   "node_source_name",
-                                                                   "aws-image",
-                                                                   2,
-                                                                   1,
-                                                                   512,
-                                                                   "0.05",
-                                                                   "default",
-                                                                   "127.0.0.1",
-                                                                   null);
+        verify(connectorIaasController).createAwsEc2InstancesWithOptions("node_source_name",
+                                                                         "node_source_name",
+                                                                         "aws-image",
+                                                                         2,
+                                                                         1,
+                                                                         512,
+                                                                         "0.05",
+                                                                         "default",
+                                                                         "127.0.0.1",
+                                                                         null,
+                                                                         "admin",
+                                                                         "keyname");
 
-        verify(connectorIaasController, times(2)).executeScript(anyString(), anyString(), anyList());
+        verify(connectorIaasController, times(2)).executeScriptWithKeyAuthentication(anyString(),
+                                                                                     anyString(),
+                                                                                     anyList(),
+                                                                                     anyString(),
+                                                                                     anyString());
 
     }
 
@@ -228,6 +253,9 @@ public class AWSEC2InfrastructureTest {
                                        "test.activeeon.com",
                                        "http://localhost:8088/connector-iaas",
                                        "aws-image",
+                                       "admin",
+                                       "keyname",
+                                       "privatekey",
                                        "2",
                                        "3",
                                        "wget -nv test.activeeon.com/rest/node.jar",
@@ -271,6 +299,9 @@ public class AWSEC2InfrastructureTest {
                                        "test.activeeon.com",
                                        "http://localhost:8088/connector-iaas",
                                        "aws-image",
+                                       "admin",
+                                       "keyname",
+                                       "privatekey",
                                        "2",
                                        "3",
                                        "wget -nv test.activeeon.com/rest/node.jar",

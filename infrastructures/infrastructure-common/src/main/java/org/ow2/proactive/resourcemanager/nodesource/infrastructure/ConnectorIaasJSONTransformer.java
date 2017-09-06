@@ -165,6 +165,55 @@ public class ConnectorIaasJSONTransformer {
         return instance.toString();
     }
 
+    public static String getAwsEc2InstanceJSON(String tag, String image, String number, String cpu, String ram,
+            String spotPrice, String securityGroupNames, String subnetId, String macAddresses, String username,
+            String keyPairName) {
+        JSONObject hardware = new JSONObject();
+        hardware.put("minCores", cpu);
+        hardware.put("minRam", ram);
+
+        JSONObject options = new JSONObject();
+
+        if (spotPrice != null && !spotPrice.isEmpty()) {
+            options.put("spotPrice", spotPrice);
+        }
+
+        if (securityGroupNames != null && !securityGroupNames.isEmpty()) {
+            String[] groups = securityGroupNames.split(",");
+            Set<String> securityGroupNamesSet = new HashSet<String>(Arrays.asList(groups));
+            options.put("securityGroupNames", securityGroupNamesSet);
+        }
+
+        if (subnetId != null && !subnetId.isEmpty()) {
+            options.put("subnetId", subnetId);
+        }
+
+        if (macAddresses != null && !macAddresses.isEmpty()) {
+            String[] addresses = macAddresses.split(",");
+            List<String> addressesList = Arrays.asList(addresses);
+            options.put("macAddresses", addressesList);
+        }
+
+        JSONObject instance = new JSONObject().put("tag", tag)
+                                              .put("image", image)
+                                              .put("number", number)
+                                              .put("hardware", hardware)
+                                              .put("options", options);
+
+        JSONObject credentials = new JSONObject();
+        if (username != null && !username.isEmpty()) {
+            credentials.put("username", username);
+        }
+        if (keyPairName != null && !keyPairName.isEmpty()) {
+            credentials.put("publicKeyName", keyPairName);
+        }
+        if (credentials.length() > 0) {
+            instance.put("credentials", credentials);
+        }
+
+        return instance.toString();
+    }
+
     public static String getInstanceJSONWithPublicKeyAndScripts(String tag, String image, String number,
             String publicKeyName, String type, List<String> scripts) {
         JSONObject credentials = new JSONObject();
@@ -188,6 +237,22 @@ public class ConnectorIaasJSONTransformer {
             JSONObject credentials = new JSONObject();
             credentials.put("username", username);
             credentials.put("password", password);
+            scriptObject = scriptObject.put("credentials", credentials);
+        }
+        return scriptObject.toString();
+    }
+
+    public static String getScriptInstanceJSONWithKeyAuthentication(List<String> scripts, String username,
+            String privateKey) {
+        JSONObject scriptObject = new JSONObject().put("scripts", new JSONArray(scripts));
+        if (username != null || privateKey != null) {
+            JSONObject credentials = new JSONObject();
+            if (username != null) {
+                credentials.put("username", username);
+            }
+            if (privateKey != null) {
+                credentials.put("privateKey", privateKey);
+            }
             scriptObject = scriptObject.put("credentials", credentials);
         }
         return scriptObject.toString();

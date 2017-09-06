@@ -25,7 +25,7 @@
  */
 package org.ow2.proactive.resourcemanager.nodesource.infrastructure;
 
-import static org.ow2.proactive.resourcemanager.core.properties.PAResourceManagerProperties.RM_AZURE_DESTROY_INSTANCES_ON_SHUTDOWN;
+import static org.ow2.proactive.resourcemanager.core.properties.PAResourceManagerProperties.RM_CLOUD_INFRASTRUCTURES_DESTROY_INSTANCES_ON_SHUTDOWN;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -295,7 +295,7 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
                                                           managementEndpoint,
                                                           resourceManagerEndpoint,
                                                           graphEndpoint,
-                                                          RM_AZURE_DESTROY_INSTANCES_ON_SHUTDOWN.getValueAsBoolean());
+                                                          RM_CLOUD_INFRASTRUCTURES_DESTROY_INSTANCES_ON_SHUTDOWN.getValueAsBoolean());
 
         String instanceTag = getInfrastructureId();
         Set<String> instancesIds;
@@ -336,9 +336,10 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
                 connectorIaasController.executeScript(getInfrastructureId(),
                                                       currentInstanceId,
                                                       Lists.newArrayList(fullScript));
-            } catch (ScriptNotExecutedException e) {
+            } catch (ScriptNotExecutedException exception) {
                 boolean acquireNodeTriggered = handleScriptNotExecutedException(existPersistedInstanceIds,
-                                                                                currentInstanceId);
+                                                                                currentInstanceId,
+                                                                                exception);
                 if (acquireNodeTriggered) {
                     // in this case we re-attempted a deployment, so we need
                     // to stop looping
@@ -351,24 +352,6 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
             }
         }
 
-    }
-
-    private boolean handleScriptNotExecutedException(boolean existPersistedInstanceIds, String currentInstanceId) {
-        boolean acquireNodeTriggered = false;
-        // if we cannot execute the script although the infrastructure
-        // was already deployed, then it means that the Azure
-        // instances are probably dead, so we will attempt a
-        // redeployment from scratch
-        if (existPersistedInstanceIds) {
-            LOGGER.info("Saved instance: " + currentInstanceId + " does not exist anymore. Recreating all instances.");
-            clearInstancesWithoutNodesMap();
-            expectInstancesAlreadyCreated(true, false);
-            acquireNode();
-            acquireNodeTriggered = true;
-        } else {
-            LOGGER.info("Script execution failed and cannot be handled, abandoning instance " + currentInstanceId);
-        }
-        return acquireNodeTriggered;
     }
 
     @Override

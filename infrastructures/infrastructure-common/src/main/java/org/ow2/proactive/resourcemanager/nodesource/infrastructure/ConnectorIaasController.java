@@ -25,6 +25,7 @@
  */
 package org.ow2.proactive.resourcemanager.nodesource.infrastructure;
 
+import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.List;
 import java.util.Set;
 
@@ -116,6 +117,24 @@ public class ConnectorIaasController {
         return createInstance(infrastructureId, instanceTag, instanceJson);
     }
 
+    public Set<String> createAwsEc2Instances(String infrastructureId, String instanceTag, String image,
+            int numberOfInstances, int cores, int ram, String username, String keyPairName) {
+
+        String instanceJson = ConnectorIaasJSONTransformer.getAwsEc2InstanceJSON(instanceTag,
+                                                                                 image,
+                                                                                 "" + numberOfInstances,
+                                                                                 "" + cores,
+                                                                                 "" + ram,
+                                                                                 null,
+                                                                                 null,
+                                                                                 null,
+                                                                                 null,
+                                                                                 username,
+                                                                                 keyPairName);
+
+        return createInstance(infrastructureId, instanceTag, instanceJson);
+    }
+
     public Set<String> createAzureInstances(String infrastructureId, String instanceTag, String image,
             int numberOfInstances, String username, String password, String publicKey, String vmSizeType,
             String resourceGroup, String region, String privateNetworkCIDR, boolean staticPublicIP) {
@@ -152,6 +171,25 @@ public class ConnectorIaasController {
         return createInstance(infrastructureId, instanceTag, instanceJson);
     }
 
+    public Set<String> createAwsEc2InstancesWithOptions(String infrastructureId, String instanceTag, String image,
+            int numberOfInstances, int cores, int ram, String spotPrice, String securityGroupNames, String subnetId,
+            String macAddresses, String username, String publicKeyName) {
+
+        String instanceJson = ConnectorIaasJSONTransformer.getAwsEc2InstanceJSON(instanceTag,
+                                                                                 image,
+                                                                                 "" + numberOfInstances,
+                                                                                 "" + cores,
+                                                                                 "" + ram,
+                                                                                 spotPrice,
+                                                                                 securityGroupNames,
+                                                                                 subnetId,
+                                                                                 macAddresses,
+                                                                                 username,
+                                                                                 publicKeyName);
+
+        return createInstance(infrastructureId, instanceTag, instanceJson);
+    }
+
     public Set<String> createInstancesWithPublicKeyNameAndInitScript(String infrastructureId, String instanceTag,
             String image, int numberOfInstances, int hardwareType, String publicKeyName, List<String> scripts) {
 
@@ -178,6 +216,21 @@ public class ConnectorIaasController {
                                                                                                       username,
                                                                                                       password);
 
+        runScriptOnInstance(infrastructureId, instanceId, instanceScriptJson);
+    }
+
+    public void executeScriptWithKeyAuthentication(String infrastructureId, String instanceId, List<String> scripts,
+            String username, String privateKey) throws ScriptNotExecutedException {
+
+        String instanceScriptJson = ConnectorIaasJSONTransformer.getScriptInstanceJSONWithKeyAuthentication(scripts,
+                                                                                                            username,
+                                                                                                            privateKey);
+
+        runScriptOnInstance(infrastructureId, instanceId, instanceScriptJson);
+    }
+
+    private void runScriptOnInstance(String infrastructureId, String instanceId, String instanceScriptJson)
+            throws ScriptNotExecutedException {
         String scriptResult = null;
         try {
 
@@ -212,6 +265,20 @@ public class ConnectorIaasController {
         logger.info("Instances ids created : " + instancesIds);
 
         return instancesIds;
+    }
+
+    public SimpleImmutableEntry<String, String> createAwsEc2KeyPair(String infrastructureId, String instanceTag,
+            String image, int numberOfInstances, int cores, int ram) {
+        String instanceJson = ConnectorIaasJSONTransformer.getInstanceJSON(instanceTag,
+                                                                           image,
+                                                                           "" + numberOfInstances,
+                                                                           "" + cores,
+                                                                           "" + ram,
+                                                                           null,
+                                                                           null,
+                                                                           null,
+                                                                           null);
+        return connectorIaasClient.createAwsEc2KeyPair(infrastructureId, instanceJson);
     }
 
 }

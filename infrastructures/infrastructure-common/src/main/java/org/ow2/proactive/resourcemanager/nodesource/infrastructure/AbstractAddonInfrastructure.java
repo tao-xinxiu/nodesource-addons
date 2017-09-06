@@ -34,6 +34,8 @@ import org.apache.log4j.Logger;
 import org.objectweb.proactive.core.node.Node;
 import org.ow2.proactive.resourcemanager.exception.RMException;
 
+import com.google.common.collect.Maps;
+
 
 /**
  * This class factorizes some common parts of the different node source addons
@@ -152,9 +154,9 @@ public abstract class AbstractAddonInfrastructure extends InfrastructureManager 
 
     @Override
     protected void initializePersistedInfraVariables() {
-        persistedInfraVariables.put(NODES_PER_INSTANCES_KEY, nodesPerInstance);
-        persistedInfraVariables.put(NB_REMOVED_NODES_PER_INSTANCE_KEY, nbRemovedNodesPerInstance);
-        persistedInfraVariables.put(INSTANCES_WITHOUT_NODES_MAP_KEY, instancesWithoutNodesMap);
+        persistedInfraVariables.put(NODES_PER_INSTANCES_KEY, Maps.newHashMap(nodesPerInstance));
+        persistedInfraVariables.put(NB_REMOVED_NODES_PER_INSTANCE_KEY, Maps.newHashMap(nbRemovedNodesPerInstance));
+        persistedInfraVariables.put(INSTANCES_WITHOUT_NODES_MAP_KEY, Maps.newHashMap(instancesWithoutNodesMap));
         persistedInfraVariables.put(INFRASTRUCTURE_CREATED_FLAG_KEY, false);
     }
 
@@ -224,7 +226,7 @@ public abstract class AbstractAddonInfrastructure extends InfrastructureManager 
                 nodesPerInstance.get(instanceId).add(nodeName);
                 logger.info("Node registered: " + nodeName);
                 // finally write to the runtime variable map
-                persistedInfraVariables.put(NODES_PER_INSTANCES_KEY, nodesPerInstance);
+                persistedInfraVariables.put(NODES_PER_INSTANCES_KEY, Maps.newHashMap(nodesPerInstance));
                 return null;
             }
         });
@@ -262,7 +264,7 @@ public abstract class AbstractAddonInfrastructure extends InfrastructureManager 
                     logger.info("Removed instance : " + instanceId);
                 }
                 // finally write to the runtime variable map
-                persistedInfraVariables.put(NODES_PER_INSTANCES_KEY, nodesPerInstance);
+                persistedInfraVariables.put(NODES_PER_INSTANCES_KEY, Maps.newHashMap(nodesPerInstance));
                 return null;
             }
         });
@@ -340,6 +342,26 @@ public abstract class AbstractAddonInfrastructure extends InfrastructureManager 
         });
     }
 
+    protected boolean handleScriptNotExecutedException(boolean existPersistedInstanceIds, String currentInstanceId,
+            ScriptNotExecutedException exception) {
+        boolean acquireNodeTriggered = false;
+        // if we cannot execute the script although the infrastructure
+        // was already deployed, then it means that the Azure
+        // instances are probably dead, so we will attempt a
+        // redeployment from scratch
+        if (existPersistedInstanceIds) {
+            logger.info("Saved instance: " + currentInstanceId + " does not exist anymore. Recreating all instances.");
+            clearInstancesWithoutNodesMap();
+            expectInstancesAlreadyCreated(true, false);
+            acquireNode();
+            acquireNodeTriggered = true;
+        } else {
+            logger.error("Script execution failed and cannot be handled, abandoning instance " + currentInstanceId,
+                         exception);
+        }
+        return acquireNodeTriggered;
+    }
+
     /**
      * Take into account a node in the tracked removed nodes and mark the
      * given instance as free if all the nodes are marked as removed for this
@@ -381,9 +403,10 @@ public abstract class AbstractAddonInfrastructure extends InfrastructureManager 
                 logDataStructureContent("Node " + nodeName + " added to the removed nodes set");
 
                 // finally write to the runtime variable map
-                persistedInfraVariables.put(NODES_PER_INSTANCES_KEY, nodesPerInstance);
-                persistedInfraVariables.put(NB_REMOVED_NODES_PER_INSTANCE_KEY, nbRemovedNodesPerInstance);
-                persistedInfraVariables.put(INSTANCES_WITHOUT_NODES_MAP_KEY, instancesWithoutNodesMap);
+                persistedInfraVariables.put(NODES_PER_INSTANCES_KEY, Maps.newHashMap(nodesPerInstance));
+                persistedInfraVariables.put(NB_REMOVED_NODES_PER_INSTANCE_KEY,
+                                            Maps.newHashMap(nbRemovedNodesPerInstance));
+                persistedInfraVariables.put(INSTANCES_WITHOUT_NODES_MAP_KEY, Maps.newHashMap(instancesWithoutNodesMap));
                 return null;
             }
         });
@@ -414,8 +437,9 @@ public abstract class AbstractAddonInfrastructure extends InfrastructureManager 
                         logDataStructureContent("Node " + nodeName + " removed from the removed nodes set");
 
                         // finally write to the runtime variable map
-                        persistedInfraVariables.put(NODES_PER_INSTANCES_KEY, nodesPerInstance);
-                        persistedInfraVariables.put(NB_REMOVED_NODES_PER_INSTANCE_KEY, nbRemovedNodesPerInstance);
+                        persistedInfraVariables.put(NODES_PER_INSTANCES_KEY, Maps.newHashMap(nodesPerInstance));
+                        persistedInfraVariables.put(NB_REMOVED_NODES_PER_INSTANCE_KEY,
+                                                    Maps.newHashMap(nbRemovedNodesPerInstance));
                     }
                 } else {
                     logger.warn("Down node " + nodeName + " is trying to reconnect, but the instance " + instanceId +
