@@ -123,7 +123,7 @@ public class ConnectorIaasJSONTransformer {
 
     public static String getAzureInstanceJSON(String instanceTag, String image, String number, String username,
             String password, String publickey, String vmSizeType, String resourceGroup, String region,
-            String privateNetworkCIDR, boolean staticPublicIP) {
+            String privateNetworkCIDR, boolean staticPublicIP, String customScriptUrl) {
         JSONObject hardware = new JSONObject();
         if (vmSizeType != null && !vmSizeType.isEmpty()) {
             hardware.put("type", vmSizeType);
@@ -161,6 +161,9 @@ public class ConnectorIaasJSONTransformer {
         }
         if (options.length() > 0) {
             instance.put("options", options);
+        }
+        if (customScriptUrl != null && !resourceGroup.isEmpty()) {
+            instance.put("customScriptUrl", customScriptUrl);
         }
         return instance.toString();
     }
