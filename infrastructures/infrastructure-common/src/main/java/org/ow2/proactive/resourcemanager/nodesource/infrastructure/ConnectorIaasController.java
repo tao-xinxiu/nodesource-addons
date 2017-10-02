@@ -213,7 +213,7 @@ public class ConnectorIaasController {
         return instancesIds;
     }
 
-    public Set<String> createAzureScaleSetInstances(String infrastructureId, String instanceTag, String image,
+    public Set<String> createAzureScaleSet(String infrastructureId, String instanceTag, String image,
             int numberOfInstances, String username, String password, String publicKey, String vmSizeType,
             String resourceGroup, String region, String privateNetworkCIDR, boolean staticPublicIP,
             String customScriptURL) {

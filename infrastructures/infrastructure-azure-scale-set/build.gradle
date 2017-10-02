@@ -8,11 +8,24 @@ shadowJar {
 sourceCompatibility = JavaVersion.VERSION_1_7
 targetCompatibility = JavaVersion.VERSION_1_7
 
+repositories {
+    // Needed by Microsoft Azure Java SDK
+    maven {
+        url "http://repository.springsource.com/maven/bundles/release"
+    }
+    maven {
+        url "http://repository.springsource.com/maven/bundles/external"
+    }
+    mavenCentral()
+    jcenter()
+}
+
 
 dependencies {
     compile project(':infrastructures:infrastructure-common')
     compile "org.ow2.proactive:rm-server:${rmVersion}"
     compile "org.objectweb.proactive:programming-core:${programmingVersion}"
+    compile group: 'com.microsoft.azure', name: 'azure-storage', version: '5.5.0'
 
     testCompile 'junit:junit:4.12'
     testCompile 'org.hamcrest:hamcrest-junit:2.0.0.0'

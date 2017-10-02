@@ -40,6 +40,10 @@ import org.ow2.proactive.resourcemanager.nodesource.common.Configurable;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.microsoft.azure.storage.CloudStorageAccount;
+import com.microsoft.azure.storage.queue.CloudQueue;
+import com.microsoft.azure.storage.queue.CloudQueueClient;
+import com.microsoft.azure.storage.queue.CloudQueueMessage;
 
 
 public class AzureScaleSetInfrastructure extends InfrastructureManager {
@@ -304,23 +308,53 @@ public class AzureScaleSetInfrastructure extends InfrastructureManager {
                                                           false);
 
         String instanceTag = getInfrastructureId();
+        createAzureQueueWithIds(instanceTag, numberOfInstances);
+        LOGGER.info("NS Queue created : ");
+
         Set<String> instancesIds;
-        instancesIds = connectorIaasController.createAzureScaleSetInstances(getInfrastructureId(),
-                                                                            instanceTag,
-                                                                            image,
-                                                                            numberOfInstances,
-                                                                            vmUsername,
-                                                                            vmPassword,
-                                                                            vmPublicKey,
-                                                                            vmSizeType,
-                                                                            resourceGroup,
-                                                                            region,
-                                                                            privateNetworkCIDR,
-                                                                            staticPublicIP,
-                                                                            customScriptURL);
+        instancesIds = connectorIaasController.createAzureScaleSet(getInfrastructureId(),
+                                                                   instanceTag,
+                                                                   image,
+                                                                   numberOfInstances,
+                                                                   vmUsername,
+                                                                   vmPassword,
+                                                                   vmPublicKey,
+                                                                   vmSizeType,
+                                                                   resourceGroup,
+                                                                   region,
+                                                                   privateNetworkCIDR,
+                                                                   staticPublicIP,
+                                                                   customScriptURL);
 
         LOGGER.info("Scale Set ids created : " + instancesIds);
 
+    }
+
+    public void createAzureQueueWithIds(String instanceTag, int numberOfInstances) {
+
+        final String storageConnectionString = "DefaultEndpointsProtocol=https;AccountName=nsqueue;AccountKey=G1p/et0iP3DU3eKcoIuZjreJmU2Wor35jTjHhtEMSJcu5aquunx1oBwzI/UnKsokmPjsaarPxHLsrHEt+Gk2Bw==;EndpointSuffix=core.windows.net";
+
+        try {
+            CloudStorageAccount storageAccount = CloudStorageAccount.parse(storageConnectionString);
+            // Create the queue client.
+            CloudQueueClient queueClient = storageAccount.createCloudQueueClient();
+
+            // Retrieve a reference to a queue.
+            CloudQueue queue = queueClient.getQueueReference(instanceTag);
+
+            // Create the queue if it doesn't already exist.
+            queue.createIfNotExists();
+
+            // Create a message and add it to the queue.
+            for (int i = 0; i < numberOfInstances; ++i) {
+                CloudQueueMessage message = new CloudQueueMessage(instanceTag + "_" + i);
+                queue.addMessage(message);
+            }
+
+        } catch (Exception e) {
+            // Output the stack trace.
+            e.printStackTrace();
+        }
     }
 
     @Override
@@ -367,7 +401,7 @@ public class AzureScaleSetInfrastructure extends InfrastructureManager {
 
     @Override
     public String getDescription() {
-        return "Handles nodes from Microsoft Azure.";
+        return "Handles nodes from Microsoft Azure Scale Set.";
     }
 
     /**
@@ -385,43 +419,6 @@ public class AzureScaleSetInfrastructure extends InfrastructureManager {
         } catch (UnknownHostException e) {
             LOGGER.warn("Unable to retrieve local canonical hostname with error: " + e);
             return DEFAULT_RM_HOSTNAME;
-        }
-    }
-
-    private String generateScriptFromInstanceId(String instanceId) {
-        String startNodeCommand = generateStartNodeCommand(instanceId);
-        if (System.getProperty("os.name").contains("Windows")) {
-            return this.customScriptURL + "; Start-Process -NoNewWindow " + startNodeCommand;
-        } else {
-            return "/bin/bash -c '" + this.customScriptURL + "; nohup " + startNodeCommand + " &'";
-        }
-    }
-
-    private String generateDefaultDownloadCommand() {
-        if (System.getProperty("os.name").contains("Windows")) {
-            return POWERSHELL_DOWNLOAD_CMD.replace(RM_HOSTNAME_PATTERN, this.rmHostname);
-        } else {
-            return WGET_DOWNLOAD_CMD.replace(RM_HOSTNAME_PATTERN, this.rmHostname);
-        }
-    }
-
-    private String generateStartNodeCommand(String instanceId) {
-        try {
-            String communicationProtocol = rmUrl.split(":")[0];
-            return START_NODE_CMD.replace(COMMUNICATION_PROTOCOL_PATTERN, communicationProtocol)
-                                 .replace(RM_HOSTNAME_PATTERN, rmHostname)
-                                 .replace(INSTANCE_ID_PATTERN, instanceId)
-                                 .replace(ADDITIONAL_PROPERTIES_PATTERN, additionalProperties)
-                                 .replace(RM_URL_PATTERN, rmUrl)
-                                 .replace(NODESOURCE_NAME_PATTERN, nodeSource.getName())
-                                 .replace(NUMBER_OF_NODES_PATTERN, String.valueOf(numberOfNodesPerInstance));
-        } catch (Exception e) {
-            LOGGER.error("Exception when generating the command, fallback on default value", e);
-            return START_NODE_FALLBACK_CMD.replace(INSTANCE_ID_PATTERN, instanceId)
-                                          .replace(ADDITIONAL_PROPERTIES_PATTERN, additionalProperties)
-                                          .replace(RM_URL_PATTERN, rmUrl)
-                                          .replace(NODESOURCE_NAME_PATTERN, nodeSource.getName())
-                                          .replace(NUMBER_OF_NODES_PATTERN, String.valueOf(numberOfNodesPerInstance));
         }
     }
 
