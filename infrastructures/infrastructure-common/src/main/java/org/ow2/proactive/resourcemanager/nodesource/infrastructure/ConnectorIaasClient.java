@@ -25,6 +25,7 @@
  */
 package org.ow2.proactive.resourcemanager.nodesource.infrastructure;
 
+import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.Iterator;
 import java.util.Set;
 
@@ -96,6 +97,9 @@ public class ConnectorIaasClient {
 
         if (instancesIds.isEmpty()) {
             instancesIds = createInstances(infrastructureId, instanceJson);
+        } else {
+            logger.info("Existing instances have been found when trying to create instances. Reusing instance ids: " +
+                        instancesIds);
         }
 
         return instancesIds;
@@ -127,6 +131,20 @@ public class ConnectorIaasClient {
         }
 
         return instancesIds;
+    }
+
+    public SimpleImmutableEntry<String, String> createAwsEc2KeyPair(String infrastructureId, String instanceJson) {
+        String response = restClient.postToKeyPairsWebResource(infrastructureId, instanceJson);
+
+        JSONObject keyPairInfoJson = new JSONObject(response);
+
+        if (keyPairInfoJson.length() > 0) {
+            String keyPairName = keyPairInfoJson.keys().next();
+            String keyPairPrivateKey = (String) keyPairInfoJson.get(keyPairName);
+            return new SimpleImmutableEntry<>(keyPairName, keyPairPrivateKey);
+        } else {
+            throw new IllegalStateException("The received key pair information is empty");
+        }
     }
 
     public void terminateInstance(String infrastructureId, String instanceId) {

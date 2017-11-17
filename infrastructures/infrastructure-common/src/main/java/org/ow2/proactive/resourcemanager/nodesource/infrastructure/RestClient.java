@@ -72,6 +72,13 @@ public class RestClient {
         checkAndGetResponse(response);
     }
 
+    public String postToKeyPairsWebResource(String infrastructureId, String instanceJson) {
+        ResteasyWebTarget target = initWebTarget(connectorIaasURL + "/infrastructures/" + infrastructureId +
+                                                 "/keypairs");
+        Response response = target.request().post(Entity.entity(instanceJson, MediaType.APPLICATION_JSON_TYPE));
+        return checkAndGetResponse(response);
+    }
+
     public String postToInstancesWebResource(String infrastructureId, String instanceJson) {
         ResteasyWebTarget target = initWebTarget(connectorIaasURL + "/infrastructures/" + infrastructureId +
                                                  "/instances");
