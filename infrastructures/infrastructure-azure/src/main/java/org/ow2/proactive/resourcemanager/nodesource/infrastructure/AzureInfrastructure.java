@@ -48,6 +48,10 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
 
     private static final Logger LOGGER = Logger.getLogger(AzureInfrastructure.class);
 
+    public static final String WINDOWS = "windows";
+
+    public static final String LINUX = "linux";
+
     public static final String INSTANCE_ID_NODE_PROPERTY = "instanceId";
 
     public static final String INFRASTRUCTURE_TYPE = "azure";
@@ -169,7 +173,7 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
     protected String image = null;
 
     @Configurable(description = "Image OS type (choose between 'linux' and 'windows', default: 'linux')")
-    protected String imageOSType = "linux";
+    protected String imageOSType = LINUX;
 
     @Configurable(description = "Azure virtual machine size type (by default: 'Standard_D1_v2')")
     protected String vmSizeType = null;
@@ -259,8 +263,8 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
                                             "The connector-iaas URL must be specified");
         throwIllegalArgumentExceptionIfNull(parameters[IMAGE_INDEX], "The image id must be specified");
         throwIllegalArgumentExceptionIfNull(parameters[IMAGE_OS_TYPE_INDEX], "The image OS type must be specified");
-        if (!parameters[IMAGE_OS_TYPE_INDEX].toString().toLowerCase().equals("windows") &&
-            !parameters[IMAGE_OS_TYPE_INDEX].toString().toLowerCase().equals("linux")) {
+        if (!getParameter(parameters, IMAGE_OS_TYPE_INDEX).equalsIgnoreCase(WINDOWS) &&
+            !getParameter(parameters, IMAGE_OS_TYPE_INDEX).equalsIgnoreCase(LINUX)) {
             throw new IllegalArgumentException("The image OS type is not recognized, it must be 'windows' or 'linux'");
         }
         throwIllegalArgumentExceptionIfNull(parameters[VM_USERNAME_INDEX],
@@ -271,7 +275,7 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
                                             "The number of instances to create must be specified");
         throwIllegalArgumentExceptionIfNull(parameters[NUMBER_OF_NODES_PER_INSTANCE_INDEX],
                                             "The number of nodes per instance to deploy must be specified");
-        if (parameters[DOWNLOAD_COMMAND_INDEX] == null || parameters[DOWNLOAD_COMMAND_INDEX].toString().isEmpty()) {
+        if (parameters[DOWNLOAD_COMMAND_INDEX] == null || getParameter(parameters, DOWNLOAD_COMMAND_INDEX).isEmpty()) {
             parameters[DOWNLOAD_COMMAND_INDEX] = generateDefaultDownloadCommand((String) parameters[IMAGE_OS_TYPE_INDEX],
                                                                                 (String) parameters[RM_HTTP_URL_INDEX]);
         }
@@ -431,27 +435,27 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
         String uniqueCommandPart = "echo script-ID" + "; " + "echo " + scriptExecutionId + "; ";
 
         String startNodeCommand = generateStartNodeCommand(instanceId);
-        if (osType.equals("windows")) {
+        if (osType.equals(WINDOWS)) {
             String[] splittedStartNodeCommand = startNodeCommand.split(" ");
-            StringBuilder downloadCommand = new StringBuilder("powershell -command \"" + uniqueCommandPart +
-                                                              this.downloadCommand + "; Start-Process -NoNewWindow " +
-                                                              "'" + startNodeCommand.split(" ")[0] + "'" +
-                                                              " -ArgumentList ");
+            StringBuilder windowsDownloadCommand = new StringBuilder("powershell -command \"" + uniqueCommandPart +
+                                                                     downloadCommand + "; Start-Process -NoNewWindow " +
+                                                                     "'" + startNodeCommand.split(" ")[0] + "'" +
+                                                                     " -ArgumentList ");
             for (int i = 1; i < splittedStartNodeCommand.length; i++) {
-                downloadCommand.append("'").append(splittedStartNodeCommand[i]).append("'");
+                windowsDownloadCommand.append("'").append(splittedStartNodeCommand[i]).append("'");
                 if (i < (splittedStartNodeCommand.length - 1)) {
-                    downloadCommand.append(", ");
+                    windowsDownloadCommand.append(", ");
                 }
             }
-            downloadCommand.append("\"");
-            return downloadCommand.toString();
+            windowsDownloadCommand.append("\"");
+            return windowsDownloadCommand.toString();
         } else {
-            return "/bin/bash -c '" + uniqueCommandPart + this.downloadCommand + "; nohup " + startNodeCommand + " &'";
+            return "/bin/bash -c '" + uniqueCommandPart + downloadCommand + "; nohup " + startNodeCommand + " &'";
         }
     }
 
     private String generateDefaultDownloadCommand(String osType, String rmHostname) {
-        if (osType.equals("windows")) {
+        if (osType.equals(WINDOWS)) {
             return POWERSHELL_DOWNLOAD_CMD.replace(RM_HTTP_URL_PATTERN, rmHostname);
         } else {
             return WGET_DOWNLOAD_CMD.replace(RM_HTTP_URL_PATTERN, rmHostname);
