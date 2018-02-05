@@ -28,6 +28,7 @@ package org.ow2.proactive.resourcemanager.nodesource.infrastructure;
 import static org.ow2.proactive.resourcemanager.core.properties.PAResourceManagerProperties.RM_CLOUD_INFRASTRUCTURES_DESTROY_INSTANCES_ON_SHUTDOWN;
 
 import java.net.InetAddress;
+import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Map;
@@ -51,7 +52,7 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
 
     public static final String INFRASTRUCTURE_TYPE = "azure";
 
-    private static final String DEFAULT_RM_HOSTNAME = "localhost";
+    private static final String DEFAULT_HTTP_RM_URL = "http://localhost:8080";
 
     private final static int PARAMETERS_NUMBER = 24;
 
@@ -72,7 +73,7 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
 
     private final static int GRAPH_ENDPOINT_INDEX = 7;
 
-    private final static int RM_HOSTNAME_INDEX = 8;
+    private final static int RM_HTTP_URL_INDEX = 8;
 
     private final static int CONNECTOR_IAAS_URL_INDEX = 9;
 
@@ -105,7 +106,7 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
     private final static int ADDITIONAL_PROPERTIES_INDEX = 23;
 
     // Command lines patterns
-    private static final CharSequence RM_HOSTNAME_PATTERN = "<RM_HOSTNAME>";
+    private static final CharSequence RM_HTTP_URL_PATTERN = "<RM_HTTP_URL>";
 
     private static final CharSequence RM_URL_PATTERN = "<RM_URL>";
 
@@ -118,14 +119,13 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
     private static final CharSequence NUMBER_OF_NODES_PATTERN = "<NUMBER_OF_NODES>";
 
     // Command lines definition
-    private static final String POWERSHELL_DOWNLOAD_CMD = "$wc = New-Object System.Net.WebClient; $wc.DownloadFile('http://" +
-                                                          RM_HOSTNAME_PATTERN + ":8080/rest/node.jar'" +
-                                                          ", 'node.jar')";
+    private static final String POWERSHELL_DOWNLOAD_CMD = "$wc = New-Object System.Net.WebClient; $wc.DownloadFile('" +
+                                                          RM_HTTP_URL_PATTERN + "/rest/node.jar'" + ", 'node.jar')";
 
-    private static final String WGET_DOWNLOAD_CMD = "wget -nv http://" + RM_HOSTNAME_PATTERN + ":8080/rest/node.jar";
+    private static final String WGET_DOWNLOAD_CMD = "wget -nv " + RM_HTTP_URL_PATTERN + "/rest/node.jar";
 
     private static final String START_NODE_CMD = "java -jar node.jar -Dproactive.pamr.router.address=" +
-                                                 RM_HOSTNAME_PATTERN + " -D" + INSTANCE_ID_NODE_PROPERTY + "=" +
+                                                 RM_HTTP_URL_PATTERN + " -D" + INSTANCE_ID_NODE_PROPERTY + "=" +
                                                  INSTANCE_ID_PATTERN + " " + ADDITIONAL_PROPERTIES_PATTERN + " -r " +
                                                  RM_URL_PATTERN + " -s " + NODESOURCE_NAME_PATTERN + " -w " +
                                                  NUMBER_OF_NODES_PATTERN;
@@ -159,11 +159,11 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
     @Configurable(description = "Optional graph endpoint from specific Azure environment")
     protected String graphEndpoint = null;
 
-    @Configurable(description = "Resource manager hostname or ip address")
-    protected String rmHostname = generateDefaultRMHostname();
+    @Configurable(description = "Resource manager HTTP URL (must be accessible from nodes)")
+    protected String rmHttpUrl = generateDefaultHttpRMUrl();
 
     @Configurable(description = "Connector-iaas URL")
-    protected String connectorIaasURL = "http://" + generateDefaultRMHostname() + ":8080/connector-iaas";
+    protected String connectorIaasURL = generateDefaultHttpRMUrl() + "/connector-iaas";
 
     @Configurable(description = "Image (name or key)")
     protected String image = null;
@@ -221,7 +221,7 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
         this.managementEndpoint = getParameter(parameters, MANAGEMENT_ENDPOINT_INDEX);
         this.resourceManagerEndpoint = getParameter(parameters, RESOURCE_MANAGER_ENDPOINT_INDEX);
         this.graphEndpoint = getParameter(parameters, GRAPH_ENDPOINT_INDEX);
-        this.rmHostname = getParameter(parameters, RM_HOSTNAME_INDEX);
+        this.rmHttpUrl = getParameter(parameters, RM_HTTP_URL_INDEX);
         this.connectorIaasURL = getParameter(parameters, CONNECTOR_IAAS_URL_INDEX);
         this.image = getParameter(parameters, IMAGE_INDEX);
         this.imageOSType = getParameter(parameters, IMAGE_OS_TYPE_INDEX).toLowerCase();
@@ -253,8 +253,8 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
         throwIllegalArgumentExceptionIfNull(parameters[CLIENT_ID_INDEX], "Azure clientId must be specified");
         throwIllegalArgumentExceptionIfNull(parameters[SECRET_INDEX], "Azure secret key must be specified");
         throwIllegalArgumentExceptionIfNull(parameters[DOMAIN_INDEX], "Azure domain or tenantId must be specified");
-        throwIllegalArgumentExceptionIfNull(parameters[RM_HOSTNAME_INDEX],
-                                            "The Resource manager hostname must be specified");
+        throwIllegalArgumentExceptionIfNull(parameters[RM_HTTP_URL_INDEX],
+                                            "The Resource manager HTTP URL must be specified");
         throwIllegalArgumentExceptionIfNull(parameters[CONNECTOR_IAAS_URL_INDEX],
                                             "The connector-iaas URL must be specified");
         throwIllegalArgumentExceptionIfNull(parameters[IMAGE_INDEX], "The image id must be specified");
@@ -273,7 +273,7 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
                                             "The number of nodes per instance to deploy must be specified");
         if (parameters[DOWNLOAD_COMMAND_INDEX] == null || parameters[DOWNLOAD_COMMAND_INDEX].toString().isEmpty()) {
             parameters[DOWNLOAD_COMMAND_INDEX] = generateDefaultDownloadCommand((String) parameters[IMAGE_OS_TYPE_INDEX],
-                                                                                (String) parameters[RM_HOSTNAME_INDEX]);
+                                                                                (String) parameters[RM_HTTP_URL_INDEX]);
         }
         if (parameters[ADDITIONAL_PROPERTIES_INDEX] == null) {
             parameters[ADDITIONAL_PROPERTIES_INDEX] = "";
@@ -408,13 +408,13 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
         return getDescription();
     }
 
-    private String generateDefaultRMHostname() {
+    private String generateDefaultHttpRMUrl() {
         try {
             // best effort, may not work for all machines
-            return InetAddress.getLocalHost().getCanonicalHostName();
+            return "http://" + InetAddress.getLocalHost().getCanonicalHostName() + ":8080";
         } catch (UnknownHostException e) {
             LOGGER.warn("Unable to retrieve local canonical hostname with error: " + e);
-            return DEFAULT_RM_HOSTNAME;
+            return DEFAULT_HTTP_RM_URL;
         }
     }
 
@@ -452,15 +452,16 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
 
     private String generateDefaultDownloadCommand(String osType, String rmHostname) {
         if (osType.equals("windows")) {
-            return POWERSHELL_DOWNLOAD_CMD.replace(RM_HOSTNAME_PATTERN, rmHostname);
+            return POWERSHELL_DOWNLOAD_CMD.replace(RM_HTTP_URL_PATTERN, rmHostname);
         } else {
-            return WGET_DOWNLOAD_CMD.replace(RM_HOSTNAME_PATTERN, rmHostname);
+            return WGET_DOWNLOAD_CMD.replace(RM_HTTP_URL_PATTERN, rmHostname);
         }
     }
 
     private String generateStartNodeCommand(String instanceId) {
         try {
-            return START_NODE_CMD.replace(RM_HOSTNAME_PATTERN, rmHostname)
+            String rmHostname = new URL(rmHttpUrl).getHost();
+            return START_NODE_CMD.replace(RM_HTTP_URL_PATTERN, rmHostname)
                                  .replace(INSTANCE_ID_PATTERN, instanceId)
                                  .replace(ADDITIONAL_PROPERTIES_PATTERN, additionalProperties)
                                  .replace(RM_URL_PATTERN, getRmUrl())

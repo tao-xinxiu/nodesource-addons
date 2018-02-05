@@ -92,9 +92,8 @@ public class AzureInfrastructureTest {
         assertThat(azureInfrastructure.managementEndpoint, is(nullValue()));
         assertThat(azureInfrastructure.resourceManagerEndpoint, is(nullValue()));
         assertThat(azureInfrastructure.graphEndpoint, is(nullValue()));
-        assertThat(azureInfrastructure.rmHostname, is(not(nullValue())));
-        assertThat(azureInfrastructure.connectorIaasURL,
-                   is("http://" + azureInfrastructure.rmHostname + ":8080/connector-iaas"));
+        assertThat(azureInfrastructure.rmHttpUrl, is(not(nullValue())));
+        assertThat(azureInfrastructure.connectorIaasURL, is(azureInfrastructure.rmHttpUrl + "/connector-iaas"));
         assertThat(azureInfrastructure.image, is(nullValue()));
         assertTrue(azureInfrastructure.imageOSType.equals("linux"));
         assertThat(azureInfrastructure.vmSizeType, is(nullValue()));
@@ -125,7 +124,7 @@ public class AzureInfrastructureTest {
                                           "managementEndpoint",
                                           "resourceManagerEndpoint",
                                           "graphEndpoint",
-                                          "test.activeeon.com",
+                                          "http://test.activeeon.com:8080",
                                           "http://localhost:8088/connector-iaas",
                                           "image",
                                           "linux",
@@ -170,7 +169,7 @@ public class AzureInfrastructureTest {
                                       "managementEndpoint",
                                       "resourceManagerEndpoint",
                                       "graphEndpoint",
-                                      "test.activeeon.com",
+                                      "http://test.activeeon.com:8080",
                                       "http://localhost:8088/connector-iaas",
                                       null,
                                       "linux",
@@ -203,7 +202,7 @@ public class AzureInfrastructureTest {
                                       "managementEndpoint",
                                       "resourceManagerEndpoint",
                                       "graphEndpoint",
-                                      "test.activeeon.com",
+                                      "http://test.activeeon.com:8080",
                                       "http://localhost:8088/connector-iaas",
                                       "image",
                                       "windows",
@@ -292,7 +291,7 @@ public class AzureInfrastructureTest {
                                       "managementEndpoint",
                                       "resourceManagerEndpoint",
                                       "graphEndpoint",
-                                      "test.activeeon.com",
+                                      "http://test.activeeon.com:8080",
                                       "http://localhost:8088/connector-iaas",
                                       "image",
                                       "linux",
@@ -344,7 +343,7 @@ public class AzureInfrastructureTest {
                                       "managementEndpoint",
                                       "resourceManagerEndpoint",
                                       "graphEndpoint",
-                                      "test.activeeon.com",
+                                      "http://test.activeeon.com:8080",
                                       "http://localhost:8088/connector-iaas",
                                       "image",
                                       "linux",
