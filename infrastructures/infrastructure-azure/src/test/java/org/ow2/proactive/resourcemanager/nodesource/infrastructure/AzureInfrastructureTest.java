@@ -29,6 +29,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyString;
@@ -91,10 +92,10 @@ public class AzureInfrastructureTest {
         assertThat(azureInfrastructure.managementEndpoint, is(nullValue()));
         assertThat(azureInfrastructure.resourceManagerEndpoint, is(nullValue()));
         assertThat(azureInfrastructure.graphEndpoint, is(nullValue()));
-        assertThat(azureInfrastructure.rmHostname, is(not(nullValue())));
-        assertThat(azureInfrastructure.connectorIaasURL,
-                   is("http://" + azureInfrastructure.rmHostname + ":8080/connector-iaas"));
+        assertThat(azureInfrastructure.rmHttpUrl, is(not(nullValue())));
+        assertThat(azureInfrastructure.connectorIaasURL, is(azureInfrastructure.rmHttpUrl + "/connector-iaas"));
         assertThat(azureInfrastructure.image, is(nullValue()));
+        assertTrue(azureInfrastructure.imageOSType.equals("linux"));
         assertThat(azureInfrastructure.vmSizeType, is(nullValue()));
         assertThat(azureInfrastructure.vmUsername, is(nullValue()));
         assertThat(azureInfrastructure.vmPassword, is(nullValue()));
@@ -103,15 +104,7 @@ public class AzureInfrastructureTest {
         assertThat(azureInfrastructure.region, is(nullValue()));
         assertThat(azureInfrastructure.numberOfInstances, is(1));
         assertThat(azureInfrastructure.numberOfNodesPerInstance, is(1));
-        if (System.getProperty("os.name").contains("Windows")) {
-            assertThat(azureInfrastructure.downloadCommand,
-                       is("powershell -command \"& { (New-Object Net.WebClient).DownloadFile('http://" +
-                          azureInfrastructure.rmHostname + ":8080/rest/node.jar', 'node.jar') }\""));
-        } else {
-            assertThat(azureInfrastructure.downloadCommand,
-                       is("wget -nv http://" + azureInfrastructure.rmHostname + ":8080/rest/node.jar"));
-
-        }
+        assertThat(azureInfrastructure.downloadCommand, is(nullValue()));
         assertThat(azureInfrastructure.privateNetworkCIDR, is(nullValue()));
         assertThat(azureInfrastructure.staticPublicIP, is(true));
         assertThat(azureInfrastructure.additionalProperties, is("-Dproactive.useIPaddress=true"));
@@ -131,9 +124,10 @@ public class AzureInfrastructureTest {
                                           "managementEndpoint",
                                           "resourceManagerEndpoint",
                                           "graphEndpoint",
-                                          "test.activeeon.com",
+                                          "http://test.activeeon.com:8080",
                                           "http://localhost:8088/connector-iaas",
                                           "image",
+                                          "linux",
                                           "Standard_D1_v2",
                                           "vmUsername",
                                           "vmPassword",
@@ -175,9 +169,10 @@ public class AzureInfrastructureTest {
                                       "managementEndpoint",
                                       "resourceManagerEndpoint",
                                       "graphEndpoint",
-                                      "test.activeeon.com",
+                                      "http://test.activeeon.com:8080",
                                       "http://localhost:8088/connector-iaas",
                                       null,
+                                      "linux",
                                       "Standard_D1_v2",
                                       "vmUsername",
                                       "vmPassword",
@@ -207,9 +202,10 @@ public class AzureInfrastructureTest {
                                       "managementEndpoint",
                                       "resourceManagerEndpoint",
                                       "graphEndpoint",
-                                      "test.activeeon.com",
+                                      "http://test.activeeon.com:8080",
                                       "http://localhost:8088/connector-iaas",
                                       "image",
+                                      "windows",
                                       "Standard_D1_v2",
                                       "vmUsername",
                                       "vmPassword",
@@ -218,7 +214,7 @@ public class AzureInfrastructureTest {
                                       "region",
                                       "2",
                                       "3",
-                                      "wget -nv test.activeeon.com/rest/node.jar",
+                                      null,
                                       "192.168.1.0/24",
                                       true,
                                       "-Dnew=value");
@@ -295,9 +291,10 @@ public class AzureInfrastructureTest {
                                       "managementEndpoint",
                                       "resourceManagerEndpoint",
                                       "graphEndpoint",
-                                      "test.activeeon.com",
+                                      "http://test.activeeon.com:8080",
                                       "http://localhost:8088/connector-iaas",
                                       "image",
+                                      "linux",
                                       "Standard_D1_v2",
                                       "vmUsername",
                                       "vmPassword",
@@ -346,9 +343,10 @@ public class AzureInfrastructureTest {
                                       "managementEndpoint",
                                       "resourceManagerEndpoint",
                                       "graphEndpoint",
-                                      "test.activeeon.com",
+                                      "http://test.activeeon.com:8080",
                                       "http://localhost:8088/connector-iaas",
                                       "image",
+                                      "linux",
                                       "Standard_D1_v2",
                                       "vmUsername",
                                       "vmPassword",

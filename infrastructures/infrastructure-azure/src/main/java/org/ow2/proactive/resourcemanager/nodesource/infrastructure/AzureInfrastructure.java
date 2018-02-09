@@ -28,10 +28,12 @@ package org.ow2.proactive.resourcemanager.nodesource.infrastructure;
 import static org.ow2.proactive.resourcemanager.core.properties.PAResourceManagerProperties.RM_CLOUD_INFRASTRUCTURES_DESTROY_INSTANCES_ON_SHUTDOWN;
 
 import java.net.InetAddress;
+import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import org.apache.log4j.Logger;
 import org.objectweb.proactive.core.ProActiveException;
@@ -46,13 +48,17 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
 
     private static final Logger LOGGER = Logger.getLogger(AzureInfrastructure.class);
 
+    public static final String WINDOWS = "windows";
+
+    public static final String LINUX = "linux";
+
     public static final String INSTANCE_ID_NODE_PROPERTY = "instanceId";
 
     public static final String INFRASTRUCTURE_TYPE = "azure";
 
-    private static final String DEFAULT_RM_HOSTNAME = "localhost";
+    private static final String DEFAULT_HTTP_RM_URL = "http://localhost:8080";
 
-    private final static int PARAMETERS_NUMBER = 23;
+    private final static int PARAMETERS_NUMBER = 24;
 
     // Indexes of parameters
     private final static int CLIENT_ID_INDEX = 0;
@@ -71,42 +77,42 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
 
     private final static int GRAPH_ENDPOINT_INDEX = 7;
 
-    private final static int RM_HOSTNAME_INDEX = 8;
+    private final static int RM_HTTP_URL_INDEX = 8;
 
     private final static int CONNECTOR_IAAS_URL_INDEX = 9;
 
     private final static int IMAGE_INDEX = 10;
 
-    private final static int VM_SIZE_TYPE_INDEX = 11;
+    private final static int IMAGE_OS_TYPE_INDEX = 11;
 
-    private final static int VM_USERNAME_INDEX = 12;
+    private final static int VM_SIZE_TYPE_INDEX = 12;
 
-    private final static int VM_PASSWORD_INDEX = 13;
+    private final static int VM_USERNAME_INDEX = 13;
 
-    private final static int VM_PUBLIC_KEY_INDEX = 14;
+    private final static int VM_PASSWORD_INDEX = 14;
 
-    private final static int RESOURCE_GROUP_INDEX = 15;
+    private final static int VM_PUBLIC_KEY_INDEX = 15;
 
-    private final static int REGION_INDEX = 16;
+    private final static int RESOURCE_GROUP_INDEX = 16;
 
-    private final static int NUMBER_OF_INSTANCES_INDEX = 17;
+    private final static int REGION_INDEX = 17;
 
-    private final static int NUMBER_OF_NODES_PER_INSTANCE_INDEX = 18;
+    private final static int NUMBER_OF_INSTANCES_INDEX = 18;
 
-    private final static int DOWNLOAD_COMMAND_INDEX = 19;
+    private final static int NUMBER_OF_NODES_PER_INSTANCE_INDEX = 19;
 
-    private final static int PRIVATE_NETWORK_CIDR_INDEX = 20;
+    private final static int DOWNLOAD_COMMAND_INDEX = 20;
 
-    private final static int STATIC_PUBLIC_IP_INDEX = 21;
+    private final static int PRIVATE_NETWORK_CIDR_INDEX = 21;
 
-    private final static int ADDITIONAL_PROPERTIES_INDEX = 22;
+    private final static int STATIC_PUBLIC_IP_INDEX = 22;
+
+    private final static int ADDITIONAL_PROPERTIES_INDEX = 23;
 
     // Command lines patterns
-    private static final CharSequence RM_HOSTNAME_PATTERN = "<RM_HOSTNAME>";
+    private static final CharSequence RM_HTTP_URL_PATTERN = "<RM_HTTP_URL>";
 
     private static final CharSequence RM_URL_PATTERN = "<RM_URL>";
-
-    private static final CharSequence COMMUNICATION_PROTOCOL_PATTERN = "<COMMUNICATION_PROTOCOL>";
 
     private static final CharSequence INSTANCE_ID_PATTERN = "<INSTANCE_ID>";
 
@@ -117,15 +123,13 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
     private static final CharSequence NUMBER_OF_NODES_PATTERN = "<NUMBER_OF_NODES>";
 
     // Command lines definition
-    private static final String POWERSHELL_DOWNLOAD_CMD = "powershell -command \"& { (New-Object Net.WebClient).DownloadFile('http://" +
-                                                          RM_HOSTNAME_PATTERN + ":8080/rest/node.jar" +
-                                                          "', 'node.jar') }\"";
+    private static final String POWERSHELL_DOWNLOAD_CMD = "$wc = New-Object System.Net.WebClient; $wc.DownloadFile('" +
+                                                          RM_HTTP_URL_PATTERN + "/rest/node.jar'" + ", 'node.jar')";
 
-    private static final String WGET_DOWNLOAD_CMD = "wget -nv http://" + RM_HOSTNAME_PATTERN + ":8080/rest/node.jar";
+    private static final String WGET_DOWNLOAD_CMD = "wget -nv " + RM_HTTP_URL_PATTERN + "/rest/node.jar";
 
-    private static final String START_NODE_CMD = "java -jar node.jar -Dproactive.communication.protocol=" +
-                                                 COMMUNICATION_PROTOCOL_PATTERN + " -Dproactive.pamr.router.address=" +
-                                                 RM_HOSTNAME_PATTERN + " -D" + INSTANCE_ID_NODE_PROPERTY + "=" +
+    private static final String START_NODE_CMD = "java -jar node.jar -Dproactive.pamr.router.address=" +
+                                                 RM_HTTP_URL_PATTERN + " -D" + INSTANCE_ID_NODE_PROPERTY + "=" +
                                                  INSTANCE_ID_PATTERN + " " + ADDITIONAL_PROPERTIES_PATTERN + " -r " +
                                                  RM_URL_PATTERN + " -s " + NODESOURCE_NAME_PATTERN + " -w " +
                                                  NUMBER_OF_NODES_PATTERN;
@@ -159,14 +163,17 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
     @Configurable(description = "Optional graph endpoint from specific Azure environment")
     protected String graphEndpoint = null;
 
-    @Configurable(description = "Resource manager hostname or ip address")
-    protected String rmHostname = generateDefaultRMHostname();
+    @Configurable(description = "Resource manager HTTP URL (must be accessible from nodes)")
+    protected String rmHttpUrl = generateDefaultHttpRMUrl();
 
     @Configurable(description = "Connector-iaas URL")
-    protected String connectorIaasURL = "http://" + generateDefaultRMHostname() + ":8080/connector-iaas";
+    protected String connectorIaasURL = generateDefaultHttpRMUrl() + "/connector-iaas";
 
     @Configurable(description = "Image (name or key)")
     protected String image = null;
+
+    @Configurable(description = "Image OS type (choose between 'linux' and 'windows', default: 'linux')")
+    protected String imageOSType = LINUX;
 
     @Configurable(description = "Azure virtual machine size type (by default: 'Standard_D1_v2')")
     protected String vmSizeType = null;
@@ -192,8 +199,8 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
     @Configurable(description = "Total nodes to create per instance")
     protected int numberOfNodesPerInstance = 1;
 
-    @Configurable(description = "Command used to download the worker jar")
-    protected String downloadCommand = generateDefaultDownloadCommand();
+    @Configurable(description = "Command used to download the worker jar (a default command will be generated for the specified image OS type)")
+    protected String downloadCommand = null;
 
     @Configurable(description = "Optional network CIDR to attach with new VM(s) (by default: '10.0.0.0/24')")
     protected String privateNetworkCIDR = null;
@@ -218,9 +225,10 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
         this.managementEndpoint = getParameter(parameters, MANAGEMENT_ENDPOINT_INDEX);
         this.resourceManagerEndpoint = getParameter(parameters, RESOURCE_MANAGER_ENDPOINT_INDEX);
         this.graphEndpoint = getParameter(parameters, GRAPH_ENDPOINT_INDEX);
-        this.rmHostname = getParameter(parameters, RM_HOSTNAME_INDEX);
+        this.rmHttpUrl = getParameter(parameters, RM_HTTP_URL_INDEX);
         this.connectorIaasURL = getParameter(parameters, CONNECTOR_IAAS_URL_INDEX);
         this.image = getParameter(parameters, IMAGE_INDEX);
+        this.imageOSType = getParameter(parameters, IMAGE_OS_TYPE_INDEX).toLowerCase();
         this.vmSizeType = getParameter(parameters, VM_SIZE_TYPE_INDEX);
         this.vmUsername = getParameter(parameters, VM_USERNAME_INDEX);
         this.vmPassword = getParameter(parameters, VM_PASSWORD_INDEX);
@@ -249,11 +257,16 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
         throwIllegalArgumentExceptionIfNull(parameters[CLIENT_ID_INDEX], "Azure clientId must be specified");
         throwIllegalArgumentExceptionIfNull(parameters[SECRET_INDEX], "Azure secret key must be specified");
         throwIllegalArgumentExceptionIfNull(parameters[DOMAIN_INDEX], "Azure domain or tenantId must be specified");
-        throwIllegalArgumentExceptionIfNull(parameters[RM_HOSTNAME_INDEX],
-                                            "The Resource manager hostname must be specified");
+        throwIllegalArgumentExceptionIfNull(parameters[RM_HTTP_URL_INDEX],
+                                            "The Resource manager HTTP URL must be specified");
         throwIllegalArgumentExceptionIfNull(parameters[CONNECTOR_IAAS_URL_INDEX],
                                             "The connector-iaas URL must be specified");
         throwIllegalArgumentExceptionIfNull(parameters[IMAGE_INDEX], "The image id must be specified");
+        throwIllegalArgumentExceptionIfNull(parameters[IMAGE_OS_TYPE_INDEX], "The image OS type must be specified");
+        if (!getParameter(parameters, IMAGE_OS_TYPE_INDEX).equalsIgnoreCase(WINDOWS) &&
+            !getParameter(parameters, IMAGE_OS_TYPE_INDEX).equalsIgnoreCase(LINUX)) {
+            throw new IllegalArgumentException("The image OS type is not recognized, it must be 'windows' or 'linux'");
+        }
         throwIllegalArgumentExceptionIfNull(parameters[VM_USERNAME_INDEX],
                                             "The virtual machine username must be specified");
         throwIllegalArgumentExceptionIfNull(parameters[VM_PASSWORD_INDEX],
@@ -262,9 +275,10 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
                                             "The number of instances to create must be specified");
         throwIllegalArgumentExceptionIfNull(parameters[NUMBER_OF_NODES_PER_INSTANCE_INDEX],
                                             "The number of nodes per instance to deploy must be specified");
-        throwIllegalArgumentExceptionIfNull(parameters[DOWNLOAD_COMMAND_INDEX],
-                                            "The download node.jar command must be specified");
-
+        if (parameters[DOWNLOAD_COMMAND_INDEX] == null || getParameter(parameters, DOWNLOAD_COMMAND_INDEX).isEmpty()) {
+            parameters[DOWNLOAD_COMMAND_INDEX] = generateDefaultDownloadCommand((String) parameters[IMAGE_OS_TYPE_INDEX],
+                                                                                (String) parameters[RM_HTTP_URL_INDEX]);
+        }
         if (parameters[ADDITIONAL_PROPERTIES_INDEX] == null) {
             parameters[ADDITIONAL_PROPERTIES_INDEX] = "";
         }
@@ -331,7 +345,7 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
 
         // execute script on instances to deploy or redeploy nodes on them
         for (String currentInstanceId : instancesIds) {
-            String fullScript = generateScriptFromInstanceId(currentInstanceId);
+            String fullScript = generateScriptFromInstanceId(currentInstanceId, imageOSType);
             try {
                 connectorIaasController.executeScript(getInfrastructureId(),
                                                       currentInstanceId,
@@ -398,38 +412,60 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
         return getDescription();
     }
 
-    private String generateDefaultRMHostname() {
+    private String generateDefaultHttpRMUrl() {
         try {
             // best effort, may not work for all machines
-            return InetAddress.getLocalHost().getCanonicalHostName();
+            return "http://" + InetAddress.getLocalHost().getCanonicalHostName() + ":8080";
         } catch (UnknownHostException e) {
             LOGGER.warn("Unable to retrieve local canonical hostname with error: " + e);
-            return DEFAULT_RM_HOSTNAME;
+            return DEFAULT_HTTP_RM_URL;
         }
     }
 
-    private String generateScriptFromInstanceId(String instanceId) {
+    private String generateScriptFromInstanceId(String instanceId, String osType) {
+        // if the script didn't change compared to the previous update,
+        // then the script will not be run by the Azure provider.
+        // Moreover, the 'forceUpdateTag' is not available in the Azure
+        // Java SDK. So in order to make sure that the script slightly
+        // changes, we make the scripts begin with a command that prints
+        // a new ID each time a script needs to be run after the first
+        // executed script.
+
+        UUID scriptExecutionId = UUID.randomUUID();
+        String uniqueCommandPart = "echo script-ID" + "; " + "echo " + scriptExecutionId + "; ";
+
         String startNodeCommand = generateStartNodeCommand(instanceId);
-        if (System.getProperty("os.name").contains("Windows")) {
-            return this.downloadCommand + "; Start-Process -NoNewWindow " + startNodeCommand;
+        if (osType.equals(WINDOWS)) {
+            String[] splittedStartNodeCommand = startNodeCommand.split(" ");
+            StringBuilder windowsDownloadCommand = new StringBuilder("powershell -command \"" + uniqueCommandPart +
+                                                                     downloadCommand + "; Start-Process -NoNewWindow " +
+                                                                     "'" + startNodeCommand.split(" ")[0] + "'" +
+                                                                     " -ArgumentList ");
+            for (int i = 1; i < splittedStartNodeCommand.length; i++) {
+                windowsDownloadCommand.append("'").append(splittedStartNodeCommand[i]).append("'");
+                if (i < (splittedStartNodeCommand.length - 1)) {
+                    windowsDownloadCommand.append(", ");
+                }
+            }
+            windowsDownloadCommand.append("\"");
+            return windowsDownloadCommand.toString();
         } else {
-            return "/bin/bash -c '" + this.downloadCommand + "; nohup " + startNodeCommand + " &'";
+            return "/bin/bash -c '" + uniqueCommandPart + downloadCommand + "; nohup " + startNodeCommand + " &'";
         }
     }
 
-    private String generateDefaultDownloadCommand() {
-        if (System.getProperty("os.name").contains("Windows")) {
-            return POWERSHELL_DOWNLOAD_CMD.replace(RM_HOSTNAME_PATTERN, this.rmHostname);
+    private String generateDefaultDownloadCommand(String osType, String rmHostname) {
+        if (osType.equals(WINDOWS)) {
+            return POWERSHELL_DOWNLOAD_CMD.replace(RM_HTTP_URL_PATTERN, rmHostname);
         } else {
-            return WGET_DOWNLOAD_CMD.replace(RM_HOSTNAME_PATTERN, this.rmHostname);
+            return WGET_DOWNLOAD_CMD.replace(RM_HTTP_URL_PATTERN, rmHostname);
         }
     }
 
     private String generateStartNodeCommand(String instanceId) {
         try {
-            String communicationProtocol = getRmUrl().split(":")[0];
-            return START_NODE_CMD.replace(COMMUNICATION_PROTOCOL_PATTERN, communicationProtocol)
-                                 .replace(RM_HOSTNAME_PATTERN, rmHostname)
+            String rmHostname = new URL(rmHttpUrl).getHost();
+            return START_NODE_CMD.replace(RM_HTTP_URL_PATTERN, rmHostname)
                                  .replace(INSTANCE_ID_PATTERN, instanceId)
                                  .replace(ADDITIONAL_PROPERTIES_PATTERN, additionalProperties)
                                  .replace(RM_URL_PATTERN, getRmUrl())

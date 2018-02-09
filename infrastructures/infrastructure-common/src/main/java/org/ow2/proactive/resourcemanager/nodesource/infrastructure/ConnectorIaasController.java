@@ -234,14 +234,16 @@ public class ConnectorIaasController {
         String scriptResult = null;
         try {
 
+            logger.info("Trying to execute script for instance id:" + instanceId);
+
             scriptResult = connectorIaasClient.runScriptOnInstance(infrastructureId, instanceId, instanceScriptJson);
 
-            logger.info("Executed successfully script for instance id :" + instanceId);
-            logger.info("InstanceScriptJson : " + instanceScriptJson);
-            logger.info("Script result : " + scriptResult);
+            logger.info("Executed successfully script for instance id:" + instanceId);
+            logger.info("InstanceScriptJson: " + instanceScriptJson);
+            logger.info("Script result: " + scriptResult);
 
         } catch (Exception e) {
-            logger.error("Error while executing script :\n" + instanceScriptJson, e);
+            logger.error("Error while executing script:\n" + instanceScriptJson, e);
             throw new ScriptNotExecutedException(e);
         }
     }
