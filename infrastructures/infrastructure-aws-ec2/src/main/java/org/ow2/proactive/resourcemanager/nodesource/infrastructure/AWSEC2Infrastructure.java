@@ -312,7 +312,7 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
 
     private String createOrUseKeyPair(String infrastructureId) {
         SimpleImmutableEntry<String, String> keyPairInfo;
-        if (vmPrivateKey.length == 0) {
+        if (vmPrivateKey.length == 0 || vmKeyPairName.isEmpty()) {
             // create a key pair in AWS
             try {
                 logger.info("Creating an AWS key pair");
@@ -327,14 +327,9 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
                 keyPairInfo = handleKeyPairCreationFailure();
             }
         } else {
-            if (!vmKeyPairName.isEmpty()) {
-                // or use the private key provided by the user
-                logger.info("Using AWS key pair provided by the user");
-                keyPairInfo = new SimpleImmutableEntry<>(vmKeyPairName,
-                                                         new String(vmPrivateKey, StandardCharsets.UTF_8));
-            } else {
-                throw new IllegalArgumentException("When the private key is provided, the key pair name must be provided as well");
-            }
+            // or use the private key provided by the user
+            logger.info("Using AWS key pair provided by the user");
+            keyPairInfo = new SimpleImmutableEntry<>(vmKeyPairName, new String(vmPrivateKey, StandardCharsets.UTF_8));
         }
         persistKeyPairInfo(keyPairInfo);
 
