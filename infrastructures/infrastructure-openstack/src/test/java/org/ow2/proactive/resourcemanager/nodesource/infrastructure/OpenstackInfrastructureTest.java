@@ -205,7 +205,60 @@ public class OpenstackInfrastructureTest {
 
     @Test
     public void testAcquireAllNodes() throws ScriptNotExecutedException {
-        testAcquireNode();
+        when(nodeSource.getName()).thenReturn("node source name");
+        openstackInfrastructure.nodeSource = nodeSource;
+
+        openstackInfrastructure.configure("username",
+                                          "password",
+                                          "endpoint",
+                                          "test.activeeon.com",
+                                          "http://localhost:8088/connector-iaas",
+                                          "openstack-image",
+                                          "3",
+                                          "publicKeyName",
+                                          "2",
+                                          "3",
+                                          "wget -nv test.activeeon.com/rest/node.jar",
+                                          "-Dnew=value");
+
+        openstackInfrastructure.connectorIaasController = connectorIaasController;
+
+        openstackInfrastructure.setRmUrl("http://test.activeeon.com");
+
+        when(connectorIaasController.createInfrastructure("node_source_name",
+                                                          "username",
+                                                          "password",
+                                                          "endpoint",
+                                                          false)).thenReturn("node_source_name");
+
+        when(connectorIaasController.createInstancesWithPublicKeyNameAndInitScript(anyString(),
+                                                                                   anyString(),
+                                                                                   anyString(),
+                                                                                   anyInt(),
+                                                                                   anyInt(),
+                                                                                   anyString(),
+                                                                                   anyList())).thenReturn(Sets.newHashSet("123",
+                                                                                                                          "456"));
+
+        openstackInfrastructure.acquireAllNodes();
+
+        verify(connectorIaasController, times(1)).waitForConnectorIaasToBeUP();
+
+        verify(connectorIaasController).createInfrastructure("node_source_name",
+                                                             "username",
+                                                             "password",
+                                                             "endpoint",
+                                                             true);
+
+        verify(connectorIaasController, times(2)).createInstancesWithPublicKeyNameAndInitScript(anyString(),
+                                                                                                anyString(),
+                                                                                                anyString(),
+                                                                                                anyInt(),
+                                                                                                anyInt(),
+                                                                                                anyString(),
+                                                                                                anyList());
+
+        verify(connectorIaasController, times(0)).executeScript(anyString(), anyString(), anyList());
     }
 
     @Test
