@@ -285,7 +285,73 @@ public class VMWareInfrastructureTest {
 
     @Test
     public void testAcquireAllNodes() throws ScriptNotExecutedException {
-        testAcquireNode();
+        when(nodeSource.getName()).thenReturn("Node source Name");
+        vmwareInfrastructure.nodeSource = nodeSource;
+
+        vmwareInfrastructure.configure("username",
+                                       "password",
+                                       "endpoint",
+                                       "test.activeeon.com",
+                                       "http://localhost:8088/connector-iaas",
+                                       "vmware-image",
+                                       "512",
+                                       "1",
+                                       "vmUsername",
+                                       "vmPassword",
+                                       "1",
+                                       "3",
+                                       "wget -nv test.activeeon.com/rest/node.jar",
+                                       "00:50:56:11:11:11",
+                                       "-Dnew=value");
+
+        vmwareInfrastructure.connectorIaasController = connectorIaasController;
+
+        vmwareInfrastructure.setRmUrl("http://test.activeeon.com");
+
+        when(connectorIaasController.createInfrastructure("node_source_name",
+                                                          "username",
+                                                          "password",
+                                                          "endpoint",
+                                                          false)).thenReturn("node_source_name");
+
+        when(connectorIaasController.createInstancesWithOptions("node_source_name",
+                                                                "node_source_name",
+                                                                "vmware-image",
+                                                                1,
+                                                                1,
+                                                                512,
+                                                                null,
+                                                                null,
+                                                                null,
+                                                                "00:50:56:11:11:11")).thenReturn(Sets.newHashSet("123",
+                                                                                                                 "456"));
+
+        vmwareInfrastructure.acquireAllNodes();
+
+        verify(connectorIaasController, times(1)).waitForConnectorIaasToBeUP();
+
+        verify(connectorIaasController).createInfrastructure("node_source_name",
+                                                             "username",
+                                                             "password",
+                                                             "endpoint",
+                                                             false);
+
+        verify(connectorIaasController).createInstancesWithOptions("node_source_name",
+                                                                   "node_source_name",
+                                                                   "vmware-image",
+                                                                   1,
+                                                                   1,
+                                                                   512,
+                                                                   null,
+                                                                   null,
+                                                                   null,
+                                                                   "00:50:56:11:11:11");
+
+        verify(connectorIaasController, times(2)).executeScriptWithCredentials(anyString(),
+                                                                               anyString(),
+                                                                               anyList(),
+                                                                               anyString(),
+                                                                               anyString());
     }
 
     @Test
