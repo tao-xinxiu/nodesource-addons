@@ -52,7 +52,7 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
     @Configurable(description = "The Openstack_Password")
     protected String password = null;
 
-    @Configurable(description = "The Openstack_Domain")
+    @Configurable(description = "The Openstack_User_Domain")
     protected String domain = null;
 
     @Configurable(description = "The Openstack_EndPoint")
@@ -141,21 +141,21 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
         if (parameters[2] == null) {
             throw new IllegalArgumentException("Openstack domain  must be specified");
         }
-
+        
         if (parameters[3] == null) {
-            throw new IllegalArgumentException("Openstack scope prefix must be specified");
+            parameters[3] = "";
         }
-
+        
         if (parameters[4] == null) {
-            throw new IllegalArgumentException("Openstack scope value must be specified");
+            parameters[4] = "";
         }
 
         if (parameters[5] == null) {
             throw new IllegalArgumentException("Openstack region must be specified");
         }
-
+        
         if (parameters[6] == null) {
-            throw new IllegalArgumentException("Openstack identity version must be specified");
+            parameters[6] = "";
         }
 
         if (parameters[7] == null) {
