@@ -139,7 +139,7 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
         }
 
         if (parameters[2] == null) {
-            throw new IllegalArgumentException("Openstack domain  must be specified");
+            throw new IllegalArgumentException("Openstack user domain  must be specified");
         }
         
         if (parameters[3] == null) {
