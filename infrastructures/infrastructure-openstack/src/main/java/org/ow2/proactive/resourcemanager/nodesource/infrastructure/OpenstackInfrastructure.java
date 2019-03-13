@@ -52,11 +52,26 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
     @Configurable(description = "The Openstack_Password")
     protected String password = null;
 
+    @Configurable(description = "The Openstack_Domain")
+    protected String domain = null;
+
     @Configurable(description = "The Openstack_EndPoint")
     protected String endpoint = null;
 
     @Configurable(description = "Resource manager hostname or ip address")
     protected String rmHostname = generateDefaultRMHostname();
+
+    @Configurable(description = "The Openstack_ScopePrefix")
+    protected String scopePrefix = null;
+
+    @Configurable(description = "The Openstack_ScopeValue")
+    protected String scopeValue = null;
+
+    @Configurable(description = "The Openstack_Region")
+    protected String region = null;
+
+    @Configurable(description = "The Openstack_IdentityVersion")
+    protected String identityVersion = null;
 
     @Configurable(description = "Connector-iaas URL")
     protected String connectorIaasURL = "http://" + generateDefaultRMHostname() + ":8080/connector-iaas";
@@ -90,23 +105,28 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
 
         this.username = parameters[0].toString().trim();
         this.password = parameters[1].toString().trim();
-        this.endpoint = parameters[2].toString().trim();
-        this.rmHostname = parameters[3].toString().trim();
-        this.connectorIaasURL = parameters[4].toString().trim();
-        this.image = parameters[5].toString().trim();
-        this.flavor = Integer.parseInt(parameters[6].toString().trim());
-        this.publicKeyName = parameters[7].toString().trim();
-        this.numberOfInstances = Integer.parseInt(parameters[8].toString().trim());
-        this.numberOfNodesPerInstance = Integer.parseInt(parameters[9].toString().trim());
-        this.downloadCommand = parameters[10].toString().trim();
-        this.additionalProperties = parameters[11].toString().trim();
+        this.domain = parameters[2].toString().trim();
+        this.endpoint = parameters[3].toString().trim();
+        this.rmHostname = parameters[4].toString().trim();
+        this.scopePrefix = parameters[5].toString().trim();
+        this.scopeValue = parameters[6].toString().trim();
+        this.region = parameters[7].toString().trim();
+        this.identityVersion = parameters[8].toString().trim();
+        this.connectorIaasURL = parameters[9].toString().trim();
+        this.image = parameters[10].toString().trim();
+        this.flavor = Integer.parseInt(parameters[11].toString().trim());
+        this.publicKeyName = parameters[12].toString().trim();
+        this.numberOfInstances = Integer.parseInt(parameters[13].toString().trim());
+        this.numberOfNodesPerInstance = Integer.parseInt(parameters[14].toString().trim());
+        this.downloadCommand = parameters[15].toString().trim();
+        this.additionalProperties = parameters[16].toString().trim();
 
         connectorIaasController = new ConnectorIaasController(connectorIaasURL, INFRASTRUCTURE_TYPE);
 
     }
 
     private void validate(Object[] parameters) {
-        if (parameters == null || parameters.length < 12) {
+        if (parameters == null || parameters.length < 17) {
             throw new IllegalArgumentException("Invalid parameters for Openstack Infrastructure creation");
         }
 
@@ -119,38 +139,58 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
         }
 
         if (parameters[2] == null) {
-            throw new IllegalArgumentException("The Resource manager hostname must be specified");
+            throw new IllegalArgumentException("Openstack domain  must be specified");
         }
 
         if (parameters[3] == null) {
-            throw new IllegalArgumentException("The connector-iaas URL must be specified");
+            throw new IllegalArgumentException("Openstack scope prefix must be specified");
         }
 
         if (parameters[4] == null) {
-            throw new IllegalArgumentException("The image id must be specified");
+            throw new IllegalArgumentException("Openstack scope value must be specified");
         }
 
         if (parameters[5] == null) {
-            throw new IllegalArgumentException("The number of instances to create must be specified");
+            throw new IllegalArgumentException("Openstack region must be specified");
         }
 
         if (parameters[6] == null) {
-            throw new IllegalArgumentException("The number of nodes per instance to deploy must be specified");
+            throw new IllegalArgumentException("Openstack identity version must be specified");
         }
 
         if (parameters[7] == null) {
-            throw new IllegalArgumentException("The download node.jar command must be specified");
+            throw new IllegalArgumentException("The Resource manager hostname must be specified");
         }
 
         if (parameters[8] == null) {
-            parameters[8] = "";
+            throw new IllegalArgumentException("The connector-iaas URL must be specified");
         }
 
         if (parameters[9] == null) {
-            throw new IllegalArgumentException("The amount of minimum RAM required must be specified");
+            throw new IllegalArgumentException("The image id must be specified");
         }
 
         if (parameters[10] == null) {
+            throw new IllegalArgumentException("The number of instances to create must be specified");
+        }
+
+        if (parameters[11] == null) {
+            throw new IllegalArgumentException("The number of nodes per instance to deploy must be specified");
+        }
+
+        if (parameters[12] == null) {
+            throw new IllegalArgumentException("The download node.jar command must be specified");
+        }
+
+        if (parameters[13] == null) {
+            parameters[13] = "";
+        }
+
+        if (parameters[14] == null) {
+            throw new IllegalArgumentException("The amount of minimum RAM required must be specified");
+        }
+
+        if (parameters[15] == null) {
             throw new IllegalArgumentException("The minimum number of cores required must be specified");
         }
 
@@ -161,7 +201,16 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
 
         connectorIaasController.waitForConnectorIaasToBeUP();
 
-        connectorIaasController.createInfrastructure(getInfrastructureId(), username, password, endpoint, true);
+        connectorIaasController.createOpenstackInfrastructure(getInfrastructureId(),
+                                                              username,
+                                                              password,
+                                                              domain,
+                                                              scopePrefix,
+                                                              scopeValue,
+                                                              region,
+                                                              identityVersion,
+                                                              endpoint,
+                                                              true);
 
         for (int i = 1; i <= numberOfInstances; i++) {
 

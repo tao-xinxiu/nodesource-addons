@@ -76,6 +76,31 @@ public class ConnectorIaasController {
         return infrastructureId;
     }
 
+    public String createOpenstackInfrastructure(String infrastructureId, String username, String password,
+            String domain, String scopePrefix, String scopeValue, String region, String identityVersion,
+            String endPoint, boolean destroyOnShutdown) {
+
+        String infrastructureJson = ConnectorIaasJSONTransformer.getOpenstackInfrastructureJSONWithEndPoint(infrastructureId,
+                                                                                                            infrastructureType,
+                                                                                                            username,
+                                                                                                            password,
+                                                                                                            domain,
+                                                                                                            scopePrefix,
+                                                                                                            scopeValue,
+                                                                                                            region,
+                                                                                                            identityVersion,
+                                                                                                            endPoint,
+                                                                                                            destroyOnShutdown);
+
+        logger.info("Creating infrastructure : " + infrastructureJson);
+
+        connectorIaasClient.createInfrastructure(infrastructureId, infrastructureJson);
+
+        logger.info("Infrastructure created");
+
+        return infrastructureId;
+    }
+
     public String createAzureInfrastructure(String infrastructureId, String clientId, String secret, String domain,
             String subscriptionId, String authenticationEndpoint, String managementEndpoint,
             String resourceManagerEndpoint, String graphEndpoint, boolean destroyOnShutdown) {

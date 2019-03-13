@@ -56,6 +56,32 @@ public class ConnectorIaasJSONTransformer {
         return infrastructure.toString();
     }
 
+    public static String getOpenstackInfrastructureJSONWithEndPoint(String infrastructureId, String type,
+            String username, String password, String domain, String scopePrefix, String scopeValue, String region,
+            String identityVersion, String endpoint, boolean toBeRemovedOnShutdown) {
+        JSONObject credentials = new JSONObject();
+        credentials.put("username", username);
+        credentials.put("password", password);
+        credentials.put("domain", password);
+        JSONObject scope = new JSONObject();
+        scope.put("prefix", scopePrefix);
+        scope.put("value", scopeValue);
+
+        JSONObject infrastructure = new JSONObject().put("id", infrastructureId)
+                                                    .put("type", type)
+                                                    .put("credentials", credentials)
+                                                    .put("scope", scope)
+                                                    .put("region", region)
+                                                    .put("identityVersion", identityVersion)
+                                                    .put("toBeRemovedOnShutdown", toBeRemovedOnShutdown);
+
+        if (endpoint != null && !endpoint.isEmpty()) {
+            infrastructure = infrastructure.put("endpoint", endpoint);
+        }
+
+        return infrastructure.toString();
+    }
+
     public static String getAzureInfrastructureJSON(String infrastructureId, String type, String clientId,
             String secret, String domain, String subscriptionId, String authenticationEndpoint,
             String managementEndpoint, String resourceManagerEndpoint, String graphEndpoint,
