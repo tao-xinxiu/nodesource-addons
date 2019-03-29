@@ -28,14 +28,17 @@ package org.ow2.proactive.resourcemanager.nodesource.infrastructure;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.apache.log4j.Logger;
 import org.objectweb.proactive.core.ProActiveException;
 import org.objectweb.proactive.core.node.Node;
 import org.ow2.proactive.resourcemanager.exception.RMException;
 import org.ow2.proactive.resourcemanager.nodesource.common.Configurable;
+import org.ow2.proactive.resourcemanager.nodesource.infrastructure.util.LinuxInitScriptGenerator;
 
-import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 
 
 public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
@@ -46,38 +49,55 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
 
     private static final Logger logger = Logger.getLogger(OpenstackInfrastructure.class);
 
-    @Configurable(description = "The Openstack_Username")
+    private transient LinuxInitScriptGenerator linuxInitScriptGenerator = new LinuxInitScriptGenerator();
+
+    @Configurable(description = "Openstack username")
     protected String username = null;
 
-    @Configurable(description = "The Openstack_Password")
+    @Configurable(description = "Openstack password")
     protected String password = null;
 
-    @Configurable(description = "The Openstack_EndPoint")
+    @Configurable(description = "Openstack user domain")
+    protected String domain = null;
+
+    @Configurable(description = "Openstack identity endPoint")
     protected String endpoint = null;
 
-    @Configurable(description = "Resource manager hostname or ip address")
-    protected String rmHostname = generateDefaultRMHostname();
+    @Configurable(description = "Openstack scope prefix")
+    protected String scopePrefix = null;
 
-    @Configurable(description = "Connector-iaas URL")
-    protected String connectorIaasURL = "http://" + generateDefaultRMHostname() + ":8080/connector-iaas";
+    @Configurable(description = "Openstack scope value")
+    protected String scopeValue = null;
 
-    @Configurable(description = "Image")
+    @Configurable(description = "Openstack region")
+    protected String region = null;
+
+    @Configurable(description = "Openstack identity version")
+    protected String identityVersion = null;
+
+    @Configurable(description = "Openstack image")
     protected String image = null;
 
     @Configurable(description = "Flavor type of OpenStack")
-    protected int flavor = 3;
+    protected String flavor = null;
 
-    @Configurable(description = "Public key name for the instance")
+    @Configurable(description = "Public key name for Openstack instance")
     protected String publicKeyName = null;
 
-    @Configurable(description = "Total instance to create")
+    @Configurable(description = "Total instances to create")
     protected int numberOfInstances = 1;
 
     @Configurable(description = "Total nodes to create per instance")
     protected int numberOfNodesPerInstance = 1;
 
-    @Configurable(description = "Command used to download the worker jar")
-    protected String downloadCommand = generateDefaultDownloadCommand();
+    @Configurable(description = "Connector-iaas URL")
+    protected String connectorIaasURL = "http://" + generateDefaultRMHostname() + ":8080/connector-iaas";
+
+    @Configurable(description = "Resource Manager hostname or ip address")
+    protected String rmHostname = generateDefaultRMHostname();
+
+    @Configurable(description = "Command used to download the node jar")
+    protected String downloadCommand = linuxInitScriptGenerator.generateNodeDownloadCommand(rmHostname);
 
     @Configurable(description = "Additional Java command properties (e.g. \"-Dpropertyname=propertyvalue\")")
     protected String additionalProperties = "-Dproactive.useIPaddress=true";
@@ -90,70 +110,83 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
 
         this.username = parameters[0].toString().trim();
         this.password = parameters[1].toString().trim();
-        this.endpoint = parameters[2].toString().trim();
-        this.rmHostname = parameters[3].toString().trim();
-        this.connectorIaasURL = parameters[4].toString().trim();
-        this.image = parameters[5].toString().trim();
-        this.flavor = Integer.parseInt(parameters[6].toString().trim());
-        this.publicKeyName = parameters[7].toString().trim();
-        this.numberOfInstances = Integer.parseInt(parameters[8].toString().trim());
-        this.numberOfNodesPerInstance = Integer.parseInt(parameters[9].toString().trim());
-        this.downloadCommand = parameters[10].toString().trim();
-        this.additionalProperties = parameters[11].toString().trim();
+        this.domain = parameters[2].toString().trim();
+        this.endpoint = parameters[3].toString().trim();
+        this.scopePrefix = parameters[4].toString().trim();
+        this.scopeValue = parameters[5].toString().trim();
+        this.region = parameters[6].toString().trim();
+        this.identityVersion = parameters[7].toString().trim();
+        this.image = parameters[8].toString().trim();
+        this.flavor = parameters[9].toString().trim();
+        this.publicKeyName = parameters[10].toString().trim();
+        this.numberOfInstances = Integer.parseInt(parameters[11].toString().trim());
+        this.numberOfNodesPerInstance = Integer.parseInt(parameters[12].toString().trim());
+        this.connectorIaasURL = parameters[13].toString().trim();
+        this.rmHostname = parameters[14].toString().trim();
+        this.downloadCommand = parameters[15].toString().trim();
+        this.additionalProperties = parameters[16].toString().trim();
 
         connectorIaasController = new ConnectorIaasController(connectorIaasURL, INFRASTRUCTURE_TYPE);
 
     }
 
     private void validate(Object[] parameters) {
-        if (parameters == null || parameters.length < 12) {
+
+        if (parameters == null || parameters.length < 15) {
             throw new IllegalArgumentException("Invalid parameters for Openstack Infrastructure creation");
         }
 
         if (parameters[0] == null) {
-            throw new IllegalArgumentException("Openstack key must be specified");
+            throw new IllegalArgumentException("Openstack username must be specified");
         }
 
         if (parameters[1] == null) {
-            throw new IllegalArgumentException("Openstack secret key  must be specified");
+            throw new IllegalArgumentException("Openstack password must be specified");
         }
 
         if (parameters[2] == null) {
-            throw new IllegalArgumentException("The Resource manager hostname must be specified");
+            throw new IllegalArgumentException("Openstack user domain must be specified");
         }
 
         if (parameters[3] == null) {
-            throw new IllegalArgumentException("The connector-iaas URL must be specified");
-        }
-
-        if (parameters[4] == null) {
-            throw new IllegalArgumentException("The image id must be specified");
-        }
-
-        if (parameters[5] == null) {
-            throw new IllegalArgumentException("The number of instances to create must be specified");
+            throw new IllegalArgumentException("Openstack endpoint must be specified");
         }
 
         if (parameters[6] == null) {
-            throw new IllegalArgumentException("The number of nodes per instance to deploy must be specified");
-        }
-
-        if (parameters[7] == null) {
-            throw new IllegalArgumentException("The download node.jar command must be specified");
+            throw new IllegalArgumentException("Openstack region must be specified");
         }
 
         if (parameters[8] == null) {
-            parameters[8] = "";
+            throw new IllegalArgumentException("Openstack image id must be specified");
         }
 
         if (parameters[9] == null) {
-            throw new IllegalArgumentException("The amount of minimum RAM required must be specified");
+            throw new IllegalArgumentException("Openstack flavor must be specified");
         }
 
-        if (parameters[10] == null) {
-            throw new IllegalArgumentException("The minimum number of cores required must be specified");
+        if (parameters[11] == null) {
+            throw new IllegalArgumentException("The number of instances to create must be specified");
         }
 
+        if (parameters[12] == null) {
+            throw new IllegalArgumentException("The number of nodes per instance to deploy must be specified");
+        }
+
+        if (parameters[13] == null) {
+            throw new IllegalArgumentException("The connector-iaas URL must be specified");
+        }
+
+        if (parameters[14] == null) {
+            throw new IllegalArgumentException("RM host (hostname or IP address) must be specified");
+        }
+
+        if (parameters[15] == null) {
+            throw new IllegalArgumentException("The command to download 'node.jar' must be specified");
+        }
+
+        if (parameters[16] == null) {
+            throw new IllegalArgumentException("Additional properties to run ProActive node must be specified");
+        }
     }
 
     @Override
@@ -161,22 +194,36 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
 
         connectorIaasController.waitForConnectorIaasToBeUP();
 
-        connectorIaasController.createInfrastructure(getInfrastructureId(), username, password, endpoint, true);
+        connectorIaasController.createOpenstackInfrastructure(getInfrastructureId(),
+                                                              username,
+                                                              password,
+                                                              domain,
+                                                              scopePrefix,
+                                                              scopeValue,
+                                                              region,
+                                                              identityVersion,
+                                                              endpoint,
+                                                              true);
 
         for (int i = 1; i <= numberOfInstances; i++) {
 
             String instanceTag = getInfrastructureId() + "_" + i;
 
-            List<String> scripts = Lists.newArrayList(this.downloadCommand,
-                                                      "nohup " + generateDefaultStartNodeCommand(instanceTag) + "  &");
+            List<String> scripts = linuxInitScriptGenerator.buildScript(instanceTag,
+                                                                        getRmUrl(),
+                                                                        rmHostname,
+                                                                        INSTANCE_TAG_NODE_PROPERTY,
+                                                                        additionalProperties,
+                                                                        nodeSource.getName(),
+                                                                        numberOfNodesPerInstance);
 
-            connectorIaasController.createInstancesWithPublicKeyNameAndInitScript(getInfrastructureId(),
-                                                                                  instanceTag,
-                                                                                  image,
-                                                                                  1,
-                                                                                  flavor,
-                                                                                  publicKeyName,
-                                                                                  scripts);
+            connectorIaasController.createOpenstackInstance(getInfrastructureId(),
+                                                            instanceTag,
+                                                            image,
+                                                            1,
+                                                            flavor,
+                                                            publicKeyName,
+                                                            scripts);
         }
 
     }
@@ -214,7 +261,7 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
 
     @Override
     public String getDescription() {
-        return "Handles nodes from the Amazon Elastic Compute Cloud Service.";
+        return "Handles nodes using Nova compute service of Openstack Cloud.";
     }
 
     /**
@@ -235,32 +282,6 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
         }
     }
 
-    private String generateDefaultDownloadCommand() {
-        if (System.getProperty("os.name").contains("Windows")) {
-            return "powershell -command \"& { (New-Object Net.WebClient).DownloadFile('" + this.rmHostname +
-                   ":8080/rest/node.jar" + "', 'node.jar') }\"";
-        } else {
-            return "wget -nv " + this.rmHostname + ":8080/rest/node.jar";
-        }
-    }
-
-    private String generateDefaultStartNodeCommand(String instanceId) {
-        try {
-            String rmUrlToUse = getRmUrl();
-
-            String protocol = rmUrlToUse.substring(0, rmUrlToUse.indexOf(':')).trim();
-            return "java -jar node.jar -Dproactive.communication.protocol=" + protocol +
-                   " -Dproactive.pamr.router.address=" + rmHostname + " -D" + INSTANCE_TAG_NODE_PROPERTY + "=" +
-                   instanceId + " " + additionalProperties + " -r " + rmUrlToUse + " -s " + nodeSource.getName() +
-                   " -w " + numberOfNodesPerInstance;
-        } catch (Exception e) {
-            logger.error("Exception when generating the command, fallback on default value", e);
-            return "java -jar node.jar -D" + INSTANCE_TAG_NODE_PROPERTY + "=" + instanceId + " " +
-                   additionalProperties + " -r " + getRmUrl() + " -s " + nodeSource.getName() + " -w " +
-                   numberOfNodesPerInstance;
-        }
-    }
-
     @Override
     protected String getInstanceIdProperty(Node node) throws RMException {
         try {
@@ -270,4 +291,38 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
         }
     }
 
+    @Override
+    public void shutDown() {
+        String infrastructureId = getInfrastructureId();
+        logger.info("Deleting infrastructure : " + infrastructureId + " and its underlying instances");
+        connectorIaasController.terminateInfrastructure(infrastructureId, true);
+    }
+
+    @Override
+    protected void unregisterNodeAndRemoveInstanceIfNeeded(final String instanceTag, final String nodeName,
+            final String infrastructureId, final boolean terminateInstanceIfEmpty) {
+        setPersistedInfraVariable(() -> {
+            // first read from the runtime variables map
+            nodesPerInstance = (Map<String, Set<String>>) persistedInfraVariables.get(NODES_PER_INSTANCES_KEY);
+            // make modifications to the nodesPerInstance map
+            if (nodesPerInstance.get(instanceTag) != null) {
+                nodesPerInstance.get(instanceTag).remove(nodeName);
+                logger.info("Removed node : " + nodeName);
+                if (nodesPerInstance.get(instanceTag).isEmpty()) {
+                    if (terminateInstanceIfEmpty) {
+                        connectorIaasController.terminateInstanceByTag(infrastructureId, instanceTag);
+                        logger.info("Instance terminated: " + instanceTag);
+                    }
+                    nodesPerInstance.remove(instanceTag);
+                    logger.info("Removed instance : " + instanceTag);
+                }
+                // finally write to the runtime variable map
+                persistedInfraVariables.put(NODES_PER_INSTANCES_KEY, Maps.newHashMap(nodesPerInstance));
+            } else {
+                logger.error("Cannot remove node " + nodeName + " because instance " + instanceTag +
+                             " is not registered");
+            }
+            return null;
+        });
+    }
 }

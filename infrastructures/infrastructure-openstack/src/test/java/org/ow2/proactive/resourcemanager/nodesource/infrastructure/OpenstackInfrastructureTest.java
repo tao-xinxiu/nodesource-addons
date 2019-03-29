@@ -85,7 +85,7 @@ public class OpenstackInfrastructureTest {
         assertThat(openstackInfrastructure.username, is(nullValue()));
         assertThat(openstackInfrastructure.password, is(nullValue()));
         assertThat(openstackInfrastructure.endpoint, is(nullValue()));
-        assertThat(openstackInfrastructure.flavor, is(3));
+        assertThat(openstackInfrastructure.flavor, is(nullValue()));
         assertThat(openstackInfrastructure.publicKeyName, is(nullValue()));
         assertThat(openstackInfrastructure.rmHostname, is(not(nullValue())));
         assertThat(openstackInfrastructure.connectorIaasURL,
@@ -113,14 +113,19 @@ public class OpenstackInfrastructureTest {
         openstackInfrastructure.nodeSource = nodeSource;
         openstackInfrastructure.configure("username",
                                           "password",
+                                          "domain",
                                           "endpoint",
-                                          "test.activeeon.com",
-                                          "http://localhost:8088/connector-iaas",
+                                          "scopePrefix",
+                                          "scopeValue",
+                                          "region",
+                                          "identityVersion",
                                           "openstack-image",
                                           "3",
                                           "publicKeyName",
-                                          "2",
-                                          "3",
+                                          "1",
+                                          "1",
+                                          "http://localhost:8088/connector-iaas",
+                                          "test.activeeon.com",
                                           "wget -nv test.activeeon.com/rest/node.jar",
                                           "-Dnew=value");
     }
@@ -151,14 +156,19 @@ public class OpenstackInfrastructureTest {
 
         openstackInfrastructure.configure("username",
                                           "password",
+                                          "domain",
                                           "endpoint",
-                                          "test.activeeon.com",
-                                          "http://localhost:8088/connector-iaas",
+                                          "scopePrefix",
+                                          "scopeValue",
+                                          "region",
+                                          "identityVersion",
                                           "openstack-image",
                                           "3",
                                           "publicKeyName",
                                           "2",
-                                          "3",
+                                          "1",
+                                          "http://localhost:8088/connector-iaas",
+                                          "test.activeeon.com",
                                           "wget -nv test.activeeon.com/rest/node.jar",
                                           "-Dnew=value");
 
@@ -166,38 +176,47 @@ public class OpenstackInfrastructureTest {
 
         openstackInfrastructure.setRmUrl("http://test.activeeon.com");
 
-        when(connectorIaasController.createInfrastructure("node_source_name",
-                                                          "username",
-                                                          "password",
-                                                          "endpoint",
-                                                          false)).thenReturn("node_source_name");
+        when(connectorIaasController.createOpenstackInfrastructure("node_source_name",
+                                                                   "username",
+                                                                   "password",
+                                                                   "domain",
+                                                                   "scopePrefix",
+                                                                   "scopeValue",
+                                                                   "region",
+                                                                   "identity",
+                                                                   "endpoint",
+                                                                   false)).thenReturn("node_source_name");
 
-        when(connectorIaasController.createInstancesWithPublicKeyNameAndInitScript(anyString(),
-                                                                                   anyString(),
-                                                                                   anyString(),
-                                                                                   anyInt(),
-                                                                                   anyInt(),
-                                                                                   anyString(),
-                                                                                   anyList())).thenReturn(Sets.newHashSet("123",
-                                                                                                                          "456"));
+        when(connectorIaasController.createOpenstackInstance(anyString(),
+                                                             anyString(),
+                                                             anyString(),
+                                                             anyInt(),
+                                                             anyString(),
+                                                             anyString(),
+                                                             anyList())).thenReturn(Sets.newHashSet("123", "456"));
 
         openstackInfrastructure.acquireNode();
 
         verify(connectorIaasController, times(1)).waitForConnectorIaasToBeUP();
 
-        verify(connectorIaasController).createInfrastructure("node_source_name",
-                                                             "username",
-                                                             "password",
-                                                             "endpoint",
-                                                             true);
+        verify(connectorIaasController).createOpenstackInfrastructure("node_source_name",
+                                                                      "username",
+                                                                      "password",
+                                                                      "domain",
+                                                                      "scopePrefix",
+                                                                      "scopeValue",
+                                                                      "region",
+                                                                      "identityVersion",
+                                                                      "endpoint",
+                                                                      true);
 
-        verify(connectorIaasController, times(2)).createInstancesWithPublicKeyNameAndInitScript(anyString(),
-                                                                                                anyString(),
-                                                                                                anyString(),
-                                                                                                anyInt(),
-                                                                                                anyInt(),
-                                                                                                anyString(),
-                                                                                                anyList());
+        verify(connectorIaasController, times(2)).createOpenstackInstance(anyString(),
+                                                                          anyString(),
+                                                                          anyString(),
+                                                                          anyInt(),
+                                                                          anyString(),
+                                                                          anyString(),
+                                                                          anyList());
 
         verify(connectorIaasController, times(0)).executeScript(anyString(), anyString(), anyList());
 
@@ -210,14 +229,19 @@ public class OpenstackInfrastructureTest {
 
         openstackInfrastructure.configure("username",
                                           "password",
+                                          "domain",
                                           "endpoint",
-                                          "test.activeeon.com",
-                                          "http://localhost:8088/connector-iaas",
+                                          "scopePrefix",
+                                          "scopeValue",
+                                          "region",
+                                          "identityVersion",
                                           "openstack-image",
                                           "3",
                                           "publicKeyName",
                                           "2",
-                                          "3",
+                                          "1",
+                                          "http://localhost:8088/connector-iaas",
+                                          "test.activeeon.com",
                                           "wget -nv test.activeeon.com/rest/node.jar",
                                           "-Dnew=value");
 
@@ -225,38 +249,47 @@ public class OpenstackInfrastructureTest {
 
         openstackInfrastructure.setRmUrl("http://test.activeeon.com");
 
-        when(connectorIaasController.createInfrastructure("node_source_name",
-                                                          "username",
-                                                          "password",
-                                                          "endpoint",
-                                                          false)).thenReturn("node_source_name");
+        when(connectorIaasController.createOpenstackInfrastructure("node_source_name",
+                                                                   "username",
+                                                                   "password",
+                                                                   "domain",
+                                                                   "scopePrefix",
+                                                                   "scopeValue",
+                                                                   "region",
+                                                                   "identity",
+                                                                   "endpoint",
+                                                                   false)).thenReturn("node_source_name");
 
-        when(connectorIaasController.createInstancesWithPublicKeyNameAndInitScript(anyString(),
-                                                                                   anyString(),
-                                                                                   anyString(),
-                                                                                   anyInt(),
-                                                                                   anyInt(),
-                                                                                   anyString(),
-                                                                                   anyList())).thenReturn(Sets.newHashSet("123",
-                                                                                                                          "456"));
+        when(connectorIaasController.createOpenstackInstance(anyString(),
+                                                             anyString(),
+                                                             anyString(),
+                                                             anyInt(),
+                                                             anyString(),
+                                                             anyString(),
+                                                             anyList())).thenReturn(Sets.newHashSet("123", "456"));
 
         openstackInfrastructure.acquireAllNodes();
 
         verify(connectorIaasController, times(1)).waitForConnectorIaasToBeUP();
 
-        verify(connectorIaasController).createInfrastructure("node_source_name",
-                                                             "username",
-                                                             "password",
-                                                             "endpoint",
-                                                             true);
+        verify(connectorIaasController).createOpenstackInfrastructure("node_source_name",
+                                                                      "username",
+                                                                      "password",
+                                                                      "domain",
+                                                                      "scopePrefix",
+                                                                      "scopeValue",
+                                                                      "region",
+                                                                      "identityVersion",
+                                                                      "endpoint",
+                                                                      true);
 
-        verify(connectorIaasController, times(2)).createInstancesWithPublicKeyNameAndInitScript(anyString(),
-                                                                                                anyString(),
-                                                                                                anyString(),
-                                                                                                anyInt(),
-                                                                                                anyInt(),
-                                                                                                anyString(),
-                                                                                                anyList());
+        verify(connectorIaasController, times(2)).createOpenstackInstance(anyString(),
+                                                                          anyString(),
+                                                                          anyString(),
+                                                                          anyInt(),
+                                                                          anyString(),
+                                                                          anyString(),
+                                                                          anyList());
 
         verify(connectorIaasController, times(0)).executeScript(anyString(), anyString(), anyList());
     }
@@ -269,14 +302,19 @@ public class OpenstackInfrastructureTest {
 
         openstackInfrastructure.configure("username",
                                           "password",
+                                          "domain",
                                           "endpoint",
-                                          "test.activeeon.com",
-                                          "http://localhost:8088/connector-iaas",
+                                          "scopePrefix",
+                                          "scopeValue",
+                                          "region",
+                                          "identityVersion",
                                           "openstack-image",
                                           "3",
                                           "publicKeyName",
-                                          "2",
-                                          "3",
+                                          "1",
+                                          "1",
+                                          "http://localhost:8088/connector-iaas",
+                                          "test.activeeon.com",
                                           "wget -nv test.activeeon.com/rest/node.jar",
                                           "-Dnew=value");
 
@@ -296,7 +334,7 @@ public class OpenstackInfrastructureTest {
 
         verify(proActiveRuntime).killNode("nodename");
 
-        verify(connectorIaasController).terminateInstance("node_source_name", "123");
+        verify(connectorIaasController).terminateInstanceByTag("node_source_name", "123");
 
         assertThat(openstackInfrastructure.getNodesPerInstancesMap().isEmpty(), is(true));
 
@@ -309,14 +347,19 @@ public class OpenstackInfrastructureTest {
         openstackInfrastructure.nodeSource = nodeSource;
         openstackInfrastructure.configure("username",
                                           "password",
+                                          "domain",
                                           "endpoint",
-                                          "test.activeeon.com",
-                                          "http://localhost:8088/connector-iaas",
+                                          "scopePrefix",
+                                          "scopeValue",
+                                          "region",
+                                          "identityVersion",
                                           "openstack-image",
                                           "3",
                                           "publicKeyName",
-                                          "2",
-                                          "3",
+                                          "1",
+                                          "1",
+                                          "http://localhost:8088/connector-iaas",
+                                          "test.activeeon.com",
                                           "wget -nv test.activeeon.com/rest/node.jar",
                                           "-Dnew=value");
 
@@ -339,7 +382,7 @@ public class OpenstackInfrastructureTest {
     @Test
     public void testGetDescription() {
         assertThat(openstackInfrastructure.getDescription(),
-                   is("Handles nodes from the Amazon Elastic Compute Cloud Service."));
+                   is("Handles nodes using Nova compute service of Openstack Cloud."));
     }
 
 }

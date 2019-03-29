@@ -76,6 +76,31 @@ public class ConnectorIaasController {
         return infrastructureId;
     }
 
+    public String createOpenstackInfrastructure(String infrastructureId, String username, String password,
+            String domain, String scopePrefix, String scopeValue, String region, String identityVersion,
+            String endPoint, boolean destroyOnShutdown) {
+
+        String infrastructureJson = ConnectorIaasJSONTransformer.getOpenstackInfrastructureJSONWithEndPoint(infrastructureId,
+                                                                                                            infrastructureType,
+                                                                                                            username,
+                                                                                                            password,
+                                                                                                            domain,
+                                                                                                            scopePrefix,
+                                                                                                            scopeValue,
+                                                                                                            region,
+                                                                                                            identityVersion,
+                                                                                                            endPoint,
+                                                                                                            destroyOnShutdown);
+
+        logger.info("Creating infrastructure : " + infrastructureJson);
+
+        connectorIaasClient.createInfrastructure(infrastructureId, infrastructureJson);
+
+        logger.info("Infrastructure created");
+
+        return infrastructureId;
+    }
+
     public String createAzureInfrastructure(String infrastructureId, String clientId, String secret, String domain,
             String subscriptionId, String authenticationEndpoint, String managementEndpoint,
             String resourceManagerEndpoint, String graphEndpoint, boolean destroyOnShutdown) {
@@ -190,15 +215,15 @@ public class ConnectorIaasController {
         return createInstance(infrastructureId, instanceTag, instanceJson);
     }
 
-    public Set<String> createInstancesWithPublicKeyNameAndInitScript(String infrastructureId, String instanceTag,
-            String image, int numberOfInstances, int hardwareType, String publicKeyName, List<String> scripts) {
+    public Set<String> createOpenstackInstance(String infrastructureId, String instanceTag, String image,
+            int numberOfInstances, String hardwareType, String publicKeyName, List<String> scripts) {
 
-        String instanceJson = ConnectorIaasJSONTransformer.getInstanceJSONWithPublicKeyAndScripts(instanceTag,
-                                                                                                  image,
-                                                                                                  String.valueOf(numberOfInstances),
-                                                                                                  publicKeyName,
-                                                                                                  String.valueOf(hardwareType),
-                                                                                                  scripts);
+        String instanceJson = ConnectorIaasJSONTransformer.getOpenstackInstanceJSON(instanceTag,
+                                                                                    image,
+                                                                                    String.valueOf(numberOfInstances),
+                                                                                    publicKeyName,
+                                                                                    hardwareType,
+                                                                                    scripts);
 
         return createInstance(infrastructureId, instanceTag, instanceJson);
     }
@@ -248,8 +273,18 @@ public class ConnectorIaasController {
         }
     }
 
+    public void terminateInfrastructure(String infrastructureId, boolean deleteInstances) {
+        connectorIaasClient.terminateInfrastructure(infrastructureId, deleteInstances);
+    }
+
     public void terminateInstance(String infrastructureId, String instanceId) {
+        logger.info("Deleting instance : " + instanceId + " in infrastructure " + infrastructureId);
         connectorIaasClient.terminateInstance(infrastructureId, instanceId);
+    }
+
+    public void terminateInstanceByTag(String infrastructureId, String instanceTag) {
+        logger.info("Deleting instance by tag: " + instanceTag + " in infrastructure " + infrastructureId);
+        connectorIaasClient.terminateInstanceByTag(infrastructureId, instanceTag);
     }
 
     private Set<String> createInstance(String infrastructureId, String instanceTag, String instanceJson) {

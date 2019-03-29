@@ -49,9 +49,31 @@ public class ConnectorIaasJSONTransformer {
                                                     .put("credentials", credentials)
                                                     .put("toBeRemovedOnShutdown", toBeRemovedOnShutdown);
 
-        if (endpoint != null && !endpoint.isEmpty()) {
-            infrastructure = infrastructure.put("endpoint", endpoint);
-        }
+        infrastructure = infrastructure.put("endpoint", endpoint);
+
+        return infrastructure.toString();
+    }
+
+    public static String getOpenstackInfrastructureJSONWithEndPoint(String infrastructureId, String type,
+            String username, String password, String domain, String scopePrefix, String scopeValue, String region,
+            String identityVersion, String endpoint, boolean toBeRemovedOnShutdown) {
+        JSONObject credentials = new JSONObject();
+        credentials.put("username", username);
+        credentials.put("password", password);
+        credentials.put("domain", domain);
+        JSONObject scope = new JSONObject();
+        scope.put("prefix", scopePrefix);
+        scope.put("value", scopeValue);
+
+        JSONObject infrastructure = new JSONObject().put("id", infrastructureId)
+                                                    .put("type", type)
+                                                    .put("credentials", credentials)
+                                                    .put("scope", scope)
+                                                    .put("region", region)
+                                                    .put("identityVersion", identityVersion)
+                                                    .put("toBeRemovedOnShutdown", toBeRemovedOnShutdown);
+
+        infrastructure = infrastructure.put("endpoint", endpoint);
 
         return infrastructure.toString();
     }
@@ -214,10 +236,12 @@ public class ConnectorIaasJSONTransformer {
         return instance.toString();
     }
 
-    public static String getInstanceJSONWithPublicKeyAndScripts(String tag, String image, String number,
-            String publicKeyName, String type, List<String> scripts) {
+    public static String getOpenstackInstanceJSON(String tag, String image, String number, String publicKeyName,
+            String type, List<String> scripts) {
         JSONObject credentials = new JSONObject();
-        credentials.put("publicKeyName", publicKeyName);
+        if (publicKeyName != null && !publicKeyName.equals("")) {
+            credentials.put("publicKeyName", publicKeyName);
+        }
         JSONObject hardware = new JSONObject();
         hardware.put("type", type);
         JSONObject script = new JSONObject();
