@@ -190,6 +190,12 @@ public class ConnectorIaasController {
         return createInstance(infrastructureId, instanceTag, instanceJson);
     }
 
+    public Set<String> createGCEInstances(String infrastructureId, String instanceTag, int numberOfInstances) {
+        String instanceJson = ConnectorIaasJSONTransformer.getGceInstanceJSON(instanceTag,
+                                                                              String.valueOf(numberOfInstances));
+        return createInstance(infrastructureId, instanceTag, instanceJson);
+    }
+
     public Set<String> createInstancesWithPublicKeyNameAndInitScript(String infrastructureId, String instanceTag,
             String image, int numberOfInstances, int hardwareType, String publicKeyName, List<String> scripts) {
 

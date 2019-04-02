@@ -214,6 +214,12 @@ public class ConnectorIaasJSONTransformer {
         return instance.toString();
     }
 
+    public static String getGceInstanceJSON(String tag, String number) {
+        JSONObject instance = new JSONObject().put("tag", tag).put("number", number);
+
+        return instance.toString();
+    }
+
     public static String getInstanceJSONWithPublicKeyAndScripts(String tag, String image, String number,
             String publicKeyName, String type, List<String> scripts) {
         JSONObject credentials = new JSONObject();
