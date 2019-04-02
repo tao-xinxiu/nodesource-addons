@@ -244,6 +244,7 @@ public class ConnectorIaasJSONTransformer {
 
     public static String getOpenstackInstanceJSON(String tag, String image, String number, String publicKeyName,
             String type, List<String> scripts) {
+
         JSONObject credentials = new JSONObject();
         if (publicKeyName != null && !publicKeyName.equals("")) {
             credentials.put("publicKeyName", publicKeyName);
