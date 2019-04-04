@@ -82,14 +82,16 @@ public class ConnectorIaasJSONTransformer {
             String secret, String domain, String subscriptionId, String authenticationEndpoint,
             String managementEndpoint, String resourceManagerEndpoint, String graphEndpoint,
             boolean toBeRemovedOnShutdown) {
-        JSONObject credentials = new JSONObject().put("username", clientId).put("password", secret).put("domain",
-                                                                                                        domain);
+        JSONObject credentials = new JSONObject().put("username", clientId)
+                                                 .put("password", secret)
+                                                 .put("domain", domain);
         if (subscriptionId != null && !subscriptionId.isEmpty()) {
             credentials.put("subscriptionId", subscriptionId);
         }
 
-        JSONObject infrastructure = new JSONObject().put("id", infrastructureId).put("type", type).put("credentials",
-                                                                                                       credentials);
+        JSONObject infrastructure = new JSONObject().put("id", infrastructureId)
+                                                    .put("type", type)
+                                                    .put("credentials", credentials);
         if (authenticationEndpoint != null && !authenticationEndpoint.isEmpty()) {
             infrastructure.put("authenticationEndpoint", authenticationEndpoint);
         }
