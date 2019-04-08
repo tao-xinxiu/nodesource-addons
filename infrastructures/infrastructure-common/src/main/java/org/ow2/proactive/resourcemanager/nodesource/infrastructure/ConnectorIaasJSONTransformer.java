@@ -236,9 +236,21 @@ public class ConnectorIaasJSONTransformer {
         return instance.toString();
     }
 
-    public static String getGceInstanceJSON(String tag, String number) {
-        JSONObject instance = new JSONObject().put("tag", tag).put("number", number);
-
+    public static String getGceInstanceJSON(String tag, String number, String vmUsername, String vmPublicKey,
+            String vmPrivateKey, List<String> initScripts, String image, String region, String ram, String cores) {
+        JSONObject credentials = new JSONObject().put("username", vmUsername)
+                                                 .put("publicKey", vmPublicKey)
+                                                 .put("privateKey", vmPrivateKey);
+        JSONObject scripts = new JSONObject().put("scripts", new JSONArray(initScripts));
+        JSONObject options = new JSONObject().put("region", region);
+        JSONObject hardware = new JSONObject().put("minRam", ram).put("minCores", cores);
+        JSONObject instance = new JSONObject().put("tag", tag)
+                                              .put("number", number)
+                                              .put("image", image)
+                                              .put("credentials", credentials)
+                                              .put("initScript", scripts)
+                                              .put("options", options)
+                                              .put("hardware", hardware);
         return instance.toString();
     }
 
