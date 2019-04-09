@@ -30,6 +30,7 @@ import static org.ow2.proactive.resourcemanager.core.properties.PAResourceManage
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.apache.log4j.Logger;
@@ -39,6 +40,7 @@ import org.ow2.proactive.resourcemanager.exception.RMException;
 import org.ow2.proactive.resourcemanager.nodesource.common.Configurable;
 import org.ow2.proactive.resourcemanager.nodesource.infrastructure.util.LinuxInitScriptGenerator;
 
+import com.google.common.collect.Maps;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
@@ -197,33 +199,27 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
                                                      null,
                                                      RM_CLOUD_INFRASTRUCTURES_DESTROY_INSTANCES_ON_SHUTDOWN.getValueAsBoolean());
 
-        for (int i = 1; i <= numberOfInstances; i++) {
+        List<String> scripts = linuxInitScriptGenerator.buildScript("$HOSTNAME",
+                                                                    getRmUrl(),
+                                                                    rmHostname,
+                                                                    INSTANCE_TAG_NODE_PROPERTY,
+                                                                    additionalProperties,
+                                                                    nodeSource.getName(),
+                                                                    numberOfNodesPerInstance);
 
-            String instanceTag = getInfrastructureId() + "-" + i;
+        Set<String> instancesIds = connectorIaasController.createGCEInstances(getInfrastructureId(),
+                                                                              getInfrastructureId(),
+                                                                              numberOfInstances,
+                                                                              vmUsername,
+                                                                              vmPublicKey,
+                                                                              vmPrivateKey,
+                                                                              scripts,
+                                                                              image,
+                                                                              region,
+                                                                              ram,
+                                                                              cores);
 
-            List<String> scripts = linuxInitScriptGenerator.buildScript(instanceTag,
-                                                                        getRmUrl(),
-                                                                        rmHostname,
-                                                                        INSTANCE_TAG_NODE_PROPERTY,
-                                                                        additionalProperties,
-                                                                        nodeSource.getName(),
-                                                                        numberOfNodesPerInstance);
-
-            Set<String> instancesIds = connectorIaasController.createGCEInstances(getInfrastructureId(),
-                                                                                  instanceTag,
-                                                                                  1,
-                                                                                  vmUsername,
-                                                                                  vmPublicKey,
-                                                                                  vmPrivateKey,
-                                                                                  scripts,
-                                                                                  image,
-                                                                                  region,
-                                                                                  ram,
-                                                                                  cores);
-
-            logger.info("Instances ids created: " + instancesIds);
-        }
-
+        logger.info("Instances ids created: " + instancesIds);
     }
 
     @Override
@@ -283,6 +279,35 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
             logger.warn(e);
             return "localhost";
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    protected void unregisterNodeAndRemoveInstanceIfNeeded(final String instanceTag, final String nodeName,
+            final String infrastructureId, final boolean terminateInstanceIfEmpty) {
+        setPersistedInfraVariable(() -> {
+            // first read from the runtime variables map
+            nodesPerInstance = (Map<String, Set<String>>) persistedInfraVariables.get(NODES_PER_INSTANCES_KEY);
+            // make modifications to the nodesPerInstance map
+            if (nodesPerInstance.get(instanceTag) != null) {
+                nodesPerInstance.get(instanceTag).remove(nodeName);
+                logger.info("Removed node : " + nodeName);
+                if (nodesPerInstance.get(instanceTag).isEmpty()) {
+                    if (terminateInstanceIfEmpty) {
+                        connectorIaasController.terminateInstanceByTag(infrastructureId, instanceTag);
+                        logger.info("Instance terminated: " + instanceTag);
+                    }
+                    nodesPerInstance.remove(instanceTag);
+                    logger.info("Removed instance : " + instanceTag);
+                }
+                // finally write to the runtime variable map
+                persistedInfraVariables.put(NODES_PER_INSTANCES_KEY, Maps.newHashMap(nodesPerInstance));
+            } else {
+                logger.error("Cannot remove node " + nodeName + " because instance " + instanceTag +
+                             " is not registered");
+            }
+            return null;
+        });
     }
 
     @Getter
