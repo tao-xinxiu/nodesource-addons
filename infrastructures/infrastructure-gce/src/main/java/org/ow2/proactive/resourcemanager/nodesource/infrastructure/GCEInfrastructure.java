@@ -29,6 +29,7 @@ import static org.ow2.proactive.resourcemanager.core.properties.PAResourceManage
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -70,13 +71,13 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     @Configurable(description = "Total nodes to create per instance")
     protected int numberOfNodesPerInstance = 1;
 
-    @Configurable(description = "The virtual machine username")
+    @Configurable(description = "The virtual machine username (optional)")
     protected String vmUsername = null;
 
-    @Configurable(fileBrowser = true, description = "The public key for accessing the virtual machine")
+    @Configurable(fileBrowser = true, description = "The public key for accessing the virtual machine (optional)")
     protected String vmPublicKey = null;
 
-    @Configurable(fileBrowser = true, description = "The private key for accessing the virtual machine")
+    @Configurable(fileBrowser = true, description = "The private key for accessing the virtual machine (optional)")
     protected String vmPrivateKey = null;
 
     @Configurable(description = "Resource manager hostname or ip address (must be accessible from nodes)")
@@ -84,6 +85,9 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
 
     @Configurable(description = "Connector-iaas URL")
     protected String connectorIaasURL = "http://" + generateDefaultRMHostname() + ":8080/connector-iaas";
+
+    @Configurable(description = "Command used to download the node jar")
+    protected String downloadCommand = linuxInitScriptGenerator.generateNodeDownloadCommand(rmHostname);
 
     @Configurable(description = "Additional Java command properties (e.g. \"-Dpropertyname=propertyvalue\")")
     protected String additionalProperties = "-Dproactive.useIPaddress=true";
@@ -94,7 +98,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     @Configurable(description = "The region of the virtual machine")
     protected String region = "us-central1-a";
 
-    @Configurable(description = "The minumum RAM required (in Mega Bytes) for each virtual machine")
+    @Configurable(description = "The minimum RAM required (in Mega Bytes) for each virtual machine")
     protected int ram = 1740;
 
     @Configurable(description = "The minimum number of CPU cores required for each virtual machine")
@@ -102,8 +106,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
 
     @Override
     public void configure(Object... parameters) {
-        logger.info("updated");
-        logger.info("Validating parameters : " + parameters);
+        logger.info("Validating parameters : " + Arrays.toString(parameters));
         validate(parameters);
 
         int parameterIndex = 0;
@@ -116,6 +119,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         this.vmPrivateKey = new String((byte[]) parameters[parameterIndex++]);
         this.rmHostname = parameters[parameterIndex++].toString().trim();
         this.connectorIaasURL = parameters[parameterIndex++].toString().trim();
+        this.downloadCommand = parameters[parameterIndex++].toString().trim();
         this.additionalProperties = parameters[parameterIndex++].toString().trim();
         this.image = parameters[parameterIndex++].toString().trim();
         this.region = parameters[parameterIndex++].toString().trim();
@@ -127,7 +131,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
 
     private void validate(Object[] parameters) {
         int parameterIndex = 0;
-        if (parameters == null || parameters.length < 13) {
+        if (parameters == null || parameters.length < 14) {
             throw new IllegalArgumentException("Invalid parameters for GCEInfrastructure creation");
         }
         throwIllegalArgumentExceptionIfNull(parameters[parameterIndex++],
@@ -147,6 +151,10 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
             parameters[parameterIndex++] = "";
         }
         // connectorIaasURL
+        if (parameters[parameterIndex] == null) {
+            parameters[parameterIndex++] = "";
+        }
+        // downloadCommand
         if (parameters[parameterIndex] == null) {
             parameters[parameterIndex++] = "";
         }
@@ -185,7 +193,8 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
             String privateKey = json.get("private_key").toString().replace("\"", "").replace("\\n", "\n");
             return new GCECredential(clientEmail, privateKey);
         } catch (Exception e) {
-            throw new IllegalArgumentException("Can't reading the JSON key file.");
+            logger.error(e);
+            throw new IllegalArgumentException("Can't reading the JSON key file: " + new String(credsFile));
         }
 
     }
@@ -193,6 +202,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     @Override
     public void acquireNode() {
         connectorIaasController.waitForConnectorIaasToBeUP();
+
         connectorIaasController.createInfrastructure(getInfrastructureId(),
                                                      gceCredential.clientEmail,
                                                      gceCredential.privateKey,
