@@ -54,7 +54,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
 
     public static final String INSTANCE_TAG_NODE_PROPERTY = "instanceTag";
 
-    private static final long serialVersionUID = 1L;
+    private static final int numberOfParameters = 14;
 
     private static final Logger logger = Logger.getLogger(GCEInfrastructure.class);
 
@@ -140,7 +140,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     }
 
     private void validate(Object[] parameters) {
-        if (parameters == null || parameters.length < 14) {
+        if (parameters == null || parameters.length < numberOfParameters) {
             throw new IllegalArgumentException("Invalid parameters for GCEInfrastructure creation");
         }
         int parameterIndex = 0;
