@@ -100,7 +100,7 @@ public class GCEInfrastructureTest {
 
     private static final String INFRASTRUCTURE_ID = "infrastructure_id";
 
-    private static final boolean DESTROY_INSTANCES_ON_SHUTDOWN = false;
+    private static final boolean DESTROY_INSTANCES_ON_SHUTDOWN = true;
 
     private static final List<String> initScripts = Arrays.asList(DOWNLOAD_COMMAND, "node start cmd");
 
@@ -108,10 +108,10 @@ public class GCEInfrastructureTest {
     private GCEInfrastructure gceInfrastructure;
 
     @Mock
-    private ConnectorIaasController connectorIaasController;
+    private LinuxInitScriptGenerator linuxInitScriptGenerator;
 
     @Mock
-    private LinuxInitScriptGenerator linuxInitScriptGenerator;
+    private ConnectorIaasController connectorIaasController;
 
     @Mock
     private NodeSource nodeSource;
@@ -147,8 +147,8 @@ public class GCEInfrastructureTest {
         assertThat(gceInfrastructure.additionalProperties, is(not(nullValue())));
         assertThat(gceInfrastructure.image, is(not(nullValue())));
         assertThat(gceInfrastructure.region, is(not(nullValue())));
-        assertThat(gceInfrastructure.ram, is(greaterThanOrEqualTo(1024)));
-        assertThat(gceInfrastructure.cores, is(1));
+        assertThat(gceInfrastructure.ram, is(greaterThanOrEqualTo(RAM)));
+        assertThat(gceInfrastructure.cores, is(CORES));
     }
 
     @Test
@@ -328,40 +328,6 @@ public class GCEInfrastructureTest {
         verify(proActiveRuntime, times(1)).killNode(nodeName);
         verify(connectorIaasController).terminateInstanceByTag(INFRASTRUCTURE_ID, instanceTag);
         assertThat(gceInfrastructure.getNodesPerInstancesMap().isEmpty(), is(true));
-    }
-
-    @Test
-    public void testUnregisterNodeAndRemoveInstanceIfNeeded() {
-        gceInfrastructure.configure(CREDENTIAL_FILE,
-                                    NUMBER_INSTANCES,
-                                    NUMBER_NODES_PER_INSTANCE,
-                                    VM_USERNAME,
-                                    VM_PUBLIC_KEY_BYTES,
-                                    VM_PRIVATE_KEY_BYTES,
-                                    RM_HOSTNAME,
-                                    CONNECTOR_IAAS_URL,
-                                    DOWNLOAD_COMMAND,
-                                    ADDITIONAL_PROPERTIES,
-                                    IMAGE,
-                                    REGION,
-                                    RAM,
-                                    CORES);
-        // re-assign needed because gceInfrastructure.configure new the object gceInfrastructure.connectorIaasController
-        gceInfrastructure.connectorIaasController = connectorIaasController;
-        final String instanceTag = "instance-tag";
-        final String nodeName = "node-name";
-        gceInfrastructure.initializePersistedInfraVariables();
-        gceInfrastructure.getNodesPerInstancesMap().put(instanceTag, Sets.newHashSet(nodeName));
-
-        gceInfrastructure.unregisterNodeAndRemoveInstanceIfNeeded(instanceTag, nodeName, INFRASTRUCTURE_ID, true);
-
-        verify(connectorIaasController, times(1)).terminateInstanceByTag(INFRASTRUCTURE_ID, instanceTag);
-        assertThat(gceInfrastructure.getNodesPerInstancesMap().isEmpty(), is(true));
-    }
-
-    @Test
-    public void testGetDescription() {
-        assertThat(gceInfrastructure.getDescription(), is("Handles nodes from the Google Compute Engine."));
     }
 
 }
