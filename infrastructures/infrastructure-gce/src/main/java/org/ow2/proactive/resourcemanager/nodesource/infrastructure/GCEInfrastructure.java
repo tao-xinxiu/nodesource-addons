@@ -25,8 +25,6 @@
  */
 package org.ow2.proactive.resourcemanager.nodesource.infrastructure;
 
-import static org.ow2.proactive.resourcemanager.core.properties.PAResourceManagerProperties.RM_CLOUD_INFRASTRUCTURES_DESTROY_INSTANCES_ON_SHUTDOWN;
-
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Arrays;
@@ -52,13 +50,25 @@ import lombok.ToString;
 
 public class GCEInfrastructure extends AbstractAddonInfrastructure {
 
+    public static final String INFRASTRUCTURE_TYPE = "google-compute-engine";
+
+    public static final String INSTANCE_TAG_NODE_PROPERTY = "instanceTag";
+
     private static final long serialVersionUID = 1L;
 
     private static final Logger logger = Logger.getLogger(GCEInfrastructure.class);
 
-    public static final String INSTANCE_TAG_NODE_PROPERTY = "instanceTag";
+    private static final String DEFAULT_IMAGE = "debian-9-stretch-v20190326";
 
-    public static final String INFRASTRUCTURE_TYPE = "google-compute-engine";
+    private static final String DEFAULT_REGION = "us-central1-a";
+
+    private static final int DEFAULT_RAM = 1740;
+
+    private static final int DEFAULT_CORES = 1;
+
+    private static final boolean DESTROY_INSTANCES_ON_SHUTDOWN = true;
+
+    private static final int JOB_STATE_REFRESH_RATE = 1000;
 
     private transient LinuxInitScriptGenerator linuxInitScriptGenerator = new LinuxInitScriptGenerator();
 
@@ -71,13 +81,13 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     @Configurable(description = "Total nodes to create per instance")
     protected int numberOfNodesPerInstance = 1;
 
-    @Configurable(description = "The virtual machine username (optional)")
+    @Configurable(description = "(optional) The virtual machine username")
     protected String vmUsername = null;
 
-    @Configurable(fileBrowser = true, description = "The public key for accessing the virtual machine (optional)")
+    @Configurable(fileBrowser = true, description = "(optional) The public key for accessing the virtual machine")
     protected String vmPublicKey = null;
 
-    @Configurable(fileBrowser = true, description = "The private key for accessing the virtual machine (optional)")
+    @Configurable(fileBrowser = true, description = "(optional) The private key for accessing the virtual machine")
     protected String vmPrivateKey = null;
 
     @Configurable(description = "Resource manager hostname or ip address (must be accessible from nodes)")
@@ -89,20 +99,20 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     @Configurable(description = "Command used to download the node jar")
     protected String downloadCommand = linuxInitScriptGenerator.generateNodeDownloadCommand(rmHostname);
 
-    @Configurable(description = "Additional Java command properties (e.g. \"-Dpropertyname=propertyvalue\")")
+    @Configurable(description = "(optional) Additional Java command properties (e.g. \"-Dpropertyname=propertyvalue\")")
     protected String additionalProperties = "-Dproactive.useIPaddress=true";
 
-    @Configurable(description = "The image of the virtual machine")
-    protected String image = "debian-9-stretch-v20190326";
+    @Configurable(description = "(optional) The image of the virtual machine")
+    protected String image = DEFAULT_IMAGE;
 
-    @Configurable(description = "The region of the virtual machine")
-    protected String region = "us-central1-a";
+    @Configurable(description = "(optional) The region of the virtual machine")
+    protected String region = DEFAULT_REGION;
 
-    @Configurable(description = "The minimum RAM required (in Mega Bytes) for each virtual machine")
-    protected int ram = 1740;
+    @Configurable(description = "(optional) The minimum RAM required (in Mega Bytes) for each virtual machine")
+    protected int ram = DEFAULT_RAM;
 
-    @Configurable(description = "The minimum number of CPU cores required for each virtual machine")
-    protected int cores = 1;
+    @Configurable(description = "(optional) The minimum number of CPU cores required for each virtual machine")
+    protected int cores = DEFAULT_CORES;
 
     @Override
     public void configure(Object... parameters) {
@@ -130,33 +140,45 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     }
 
     private void validate(Object[] parameters) {
-        int parameterIndex = 0;
         if (parameters == null || parameters.length < 14) {
             throw new IllegalArgumentException("Invalid parameters for GCEInfrastructure creation");
         }
-        throwIllegalArgumentExceptionIfNull(parameters[parameterIndex++],
-                                            "Google Cloud Platform service account must be specified");
-        throwIllegalArgumentExceptionIfNull(parameters[parameterIndex++],
-                                            "The number of instances to create must be specified");
-        throwIllegalArgumentExceptionIfNull(parameters[parameterIndex++],
-                                            "The number of nodes per instance to deploy must be specified");
-        throwIllegalArgumentExceptionIfNull(parameters[parameterIndex++],
-                                            "The virtual machine username must be specified");
-        throwIllegalArgumentExceptionIfNull(parameters[parameterIndex++],
-                                            "The public key for accessing the virtual machine must be specified");
-        throwIllegalArgumentExceptionIfNull(parameters[parameterIndex++],
-                                            "The private key for accessing the virtual machine must be specified");
-        // rmHostname
+        int parameterIndex = 0;
+        // gceCredential
+        if (parameters[parameterIndex++] == null) {
+            throw new IllegalArgumentException("The Google Cloud Platform service account must be specified");
+        }
+        // numberOfInstances
+        if (parameters[parameterIndex++] == null) {
+            throw new IllegalArgumentException("The number of instances to create must be specified");
+        }
+        // numberOfNodesPerInstance
+        if (parameters[parameterIndex++] == null) {
+            throw new IllegalArgumentException("The number of nodes per instance to deploy must be specified");
+        }
+        // vmUsername
         if (parameters[parameterIndex] == null) {
             parameters[parameterIndex++] = "";
+        }
+        // vmPublicKey
+        if (parameters[parameterIndex] == null) {
+            parameters[parameterIndex++] = "";
+        }
+        // vmPrivateKey
+        if (parameters[parameterIndex] == null) {
+            parameters[parameterIndex++] = "";
+        }
+        // rmHostname
+        if (parameters[parameterIndex++] == null) {
+            throw new IllegalArgumentException("The resource manager hostname must be specified");
         }
         // connectorIaasURL
-        if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = "";
+        if (parameters[parameterIndex++] == null) {
+            throw new IllegalArgumentException("The connector-iaas URL must be specified");
         }
         // downloadCommand
-        if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = "";
+        if (parameters[parameterIndex++] == null) {
+            throw new IllegalArgumentException("The command for downloading the node jar must be specified");
         }
         // additionalProperties
         if (parameters[parameterIndex] == null) {
@@ -164,25 +186,19 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         }
         // image
         if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = "debian-9-stretch-v20190326";
+            parameters[parameterIndex++] = DEFAULT_IMAGE;
         }
         // region
         if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = "";
+            parameters[parameterIndex++] = DEFAULT_REGION;
         }
         // ram
         if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = "1740";
+            parameters[parameterIndex++] = String.valueOf(DEFAULT_RAM);
         }
         // cores
         if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = "1";
-        }
-    }
-
-    private void throwIllegalArgumentExceptionIfNull(Object parameter, String error) {
-        if (parameter == null) {
-            throw new IllegalArgumentException(error);
+            parameters[parameterIndex++] = String.valueOf(DEFAULT_CORES);
         }
     }
 
@@ -194,7 +210,8 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
             return new GCECredential(clientEmail, privateKey);
         } catch (Exception e) {
             logger.error(e);
-            throw new IllegalArgumentException("Can't reading the JSON key file: " + new String(credsFile));
+            throw new IllegalArgumentException("Can't reading the GCE service account JSON key file: " +
+                                               new String(credsFile));
         }
 
     }
@@ -207,9 +224,11 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
                                                      gceCredential.clientEmail,
                                                      gceCredential.privateKey,
                                                      null,
-                                                     RM_CLOUD_INFRASTRUCTURES_DESTROY_INSTANCES_ON_SHUTDOWN.getValueAsBoolean());
+                                                     DESTROY_INSTANCES_ON_SHUTDOWN);
 
-        List<String> scripts = linuxInitScriptGenerator.buildScript("$HOSTNAME",
+        // the initial scripts to be executed on each node requires the identification of the instance (i.e., instanceTag), which can be retrieved through its hostname on each instance.
+        final String initCmdInstanceTag = "$HOSTNAME";
+        List<String> scripts = linuxInitScriptGenerator.buildScript(initCmdInstanceTag,
                                                                     getRmUrl(),
                                                                     rmHostname,
                                                                     INSTANCE_TAG_NODE_PROPERTY,
@@ -229,7 +248,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
                                                                               ram,
                                                                               cores);
 
-        logger.info("Instances ids created: " + instancesIds);
+        logger.info("Instances created: " + instancesIds);
     }
 
     @Override
@@ -318,6 +337,17 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
             }
             return null;
         });
+    }
+
+    /**
+     * parse the google-compute-engine instance tag from instance id
+     *
+     * @param instanceId e.g., https://www.googleapis.com/compute/v1/projects/fifth-totality-235316/zones/us-central1-a/instances/gce-afa
+     * @return instanceTag e.g., gce-afa
+     */
+    private static String parseGCEInstanceTagFromId(String instanceId) {
+        String[] instanceIdSplit = instanceId.split("/");
+        return instanceIdSplit[instanceIdSplit.length - 1];
     }
 
     @Getter
