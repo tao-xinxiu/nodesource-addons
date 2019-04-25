@@ -98,6 +98,8 @@ public class GCEInfrastructureTest {
 
     private static final int CORES = 1;
 
+    private static final int NODE_TIMEOUT = 120000;
+
     private static final String INFRASTRUCTURE_ID = "infrastructure_id";
 
     private static final boolean DESTROY_INSTANCES_ON_SHUTDOWN = true;
@@ -149,6 +151,7 @@ public class GCEInfrastructureTest {
         assertThat(gceInfrastructure.region, is(not(nullValue())));
         assertThat(gceInfrastructure.ram, is(greaterThanOrEqualTo(RAM)));
         assertThat(gceInfrastructure.cores, is(CORES));
+        assertThat(gceInfrastructure.nodeTimeout, is(not(nullValue())));
     }
 
     @Test
@@ -166,7 +169,8 @@ public class GCEInfrastructureTest {
                                     IMAGE,
                                     REGION,
                                     RAM,
-                                    CORES);
+                                    CORES,
+                                    NODE_TIMEOUT);
 
         assertThat(gceInfrastructure.gceCredential.clientEmail, is(CLIENT_EMAIL));
         assertThat(gceInfrastructure.gceCredential.privateKey, is(PRIVATE_KEY));
@@ -183,6 +187,7 @@ public class GCEInfrastructureTest {
         assertThat(gceInfrastructure.region, is(REGION));
         assertThat(gceInfrastructure.ram, is(RAM));
         assertThat(gceInfrastructure.cores, is(CORES));
+        assertThat(gceInfrastructure.nodeTimeout, is(NODE_TIMEOUT));
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -196,7 +201,8 @@ public class GCEInfrastructureTest {
                                     IMAGE,
                                     REGION,
                                     RAM,
-                                    CORES);
+                                    CORES,
+                                    NODE_TIMEOUT);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -214,7 +220,8 @@ public class GCEInfrastructureTest {
                                     IMAGE,
                                     REGION,
                                     RAM,
-                                    CORES);
+                                    CORES,
+                                    NODE_TIMEOUT);
     }
 
     @Test
@@ -232,7 +239,8 @@ public class GCEInfrastructureTest {
                                     IMAGE,
                                     REGION,
                                     RAM,
-                                    CORES);
+                                    CORES,
+                                    NODE_TIMEOUT);
         // re-assign needed because gceInfrastructure.configure new the object gceInfrastructure.connectorIaasController
         gceInfrastructure.connectorIaasController = connectorIaasController;
         when(nodeSource.getName()).thenReturn(INFRASTRUCTURE_ID);
@@ -242,7 +250,8 @@ public class GCEInfrastructureTest {
                                                   anyString(),
                                                   anyString(),
                                                   anyString(),
-                                                  anyInt())).thenReturn(initScripts);
+                                                  anyInt(),
+                                                  anyString())).thenReturn(initScripts);
 
         gceInfrastructure.acquireNode();
 
@@ -280,7 +289,8 @@ public class GCEInfrastructureTest {
                                     IMAGE,
                                     REGION,
                                     RAM,
-                                    CORES);
+                                    CORES,
+                                    NODE_TIMEOUT);
         // re-assign needed because gceInfrastructure.configure new the object gceInfrastructure.connectorIaasController
         gceInfrastructure.connectorIaasController = connectorIaasController;
         final String instanceTag = "instance-tag";
@@ -311,7 +321,8 @@ public class GCEInfrastructureTest {
                                     IMAGE,
                                     REGION,
                                     RAM,
-                                    CORES);
+                                    CORES,
+                                    NODE_TIMEOUT);
         // re-assign needed because gceInfrastructure.configure new the object gceInfrastructure.connectorIaasController
         gceInfrastructure.connectorIaasController = connectorIaasController;
         final String instanceTag = "instance-tag";

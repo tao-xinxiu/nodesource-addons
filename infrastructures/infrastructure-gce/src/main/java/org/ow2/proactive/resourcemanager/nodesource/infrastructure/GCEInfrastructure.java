@@ -27,10 +27,9 @@ package org.ow2.proactive.resourcemanager.nodesource.infrastructure;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
 import org.apache.log4j.Logger;
 import org.objectweb.proactive.core.ProActiveException;
@@ -38,6 +37,7 @@ import org.objectweb.proactive.core.node.Node;
 import org.ow2.proactive.resourcemanager.exception.RMException;
 import org.ow2.proactive.resourcemanager.nodesource.common.Configurable;
 import org.ow2.proactive.resourcemanager.nodesource.infrastructure.util.LinuxInitScriptGenerator;
+import org.ow2.proactive.resourcemanager.utils.RMNodeStarter;
 
 import com.google.common.collect.Maps;
 import com.google.gson.JsonObject;
@@ -54,7 +54,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
 
     public static final String INSTANCE_TAG_NODE_PROPERTY = "instanceTag";
 
-    private static final int numberOfParameters = 14;
+    private static final int NUMBER_OF_PARAMETERS = 15;
 
     private static final Logger logger = Logger.getLogger(GCEInfrastructure.class);
 
@@ -67,8 +67,6 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     private static final int DEFAULT_CORES = 1;
 
     private static final boolean DESTROY_INSTANCES_ON_SHUTDOWN = true;
-
-    private static final int JOB_STATE_REFRESH_RATE = 1000;
 
     private transient LinuxInitScriptGenerator linuxInitScriptGenerator = new LinuxInitScriptGenerator();
 
@@ -114,6 +112,9 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     @Configurable(description = "(optional) The minimum number of CPU cores required for each virtual machine")
     protected int cores = DEFAULT_CORES;
 
+    @Configurable(description = "Node timeout in ms. After this timeout expired, the node is considered to be lost")
+    protected int nodeTimeout = 2 * 60 * 1000;// 2 min
+
     @Override
     public void configure(Object... parameters) {
         logger.info("Validating parameters : " + Arrays.toString(parameters));
@@ -135,12 +136,13 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         this.region = parameters[parameterIndex++].toString().trim();
         this.ram = Integer.parseInt(parameters[parameterIndex++].toString().trim());
         this.cores = Integer.parseInt(parameters[parameterIndex++].toString().trim());
+        this.nodeTimeout = Integer.parseInt(parameters[parameterIndex++].toString().trim());
 
         connectorIaasController = new ConnectorIaasController(connectorIaasURL, INFRASTRUCTURE_TYPE);
     }
 
     private void validate(Object[] parameters) {
-        if (parameters == null || parameters.length < numberOfParameters) {
+        if (parameters == null || parameters.length < NUMBER_OF_PARAMETERS) {
             throw new IllegalArgumentException("Invalid parameters for GCEInfrastructure creation");
         }
         int parameterIndex = 0;
@@ -200,6 +202,10 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         if (parameters[parameterIndex] == null) {
             parameters[parameterIndex++] = String.valueOf(DEFAULT_CORES);
         }
+        // nodeTimeout
+        if (parameters[parameterIndex++] == null) {
+            throw new IllegalArgumentException("The node timeout must be specified");
+        }
     }
 
     private GCECredential getCredentialFromJsonKeyFile(byte[] credsFile) {
@@ -228,13 +234,16 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
 
         // the initial scripts to be executed on each node requires the identification of the instance (i.e., instanceTag), which can be retrieved through its hostname on each instance.
         final String initCmdInstanceTag = "$HOSTNAME";
+        final String initCmdNodeName = "$HOSTNAME";
+
         List<String> scripts = linuxInitScriptGenerator.buildScript(initCmdInstanceTag,
                                                                     getRmUrl(),
                                                                     rmHostname,
                                                                     INSTANCE_TAG_NODE_PROPERTY,
                                                                     additionalProperties,
                                                                     nodeSource.getName(),
-                                                                    numberOfNodesPerInstance);
+                                                                    numberOfNodesPerInstance,
+                                                                    initCmdNodeName);
 
         Set<String> instancesIds = connectorIaasController.createGCEInstances(getInfrastructureId(),
                                                                               getInfrastructureId(),
@@ -248,7 +257,19 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
                                                                               ram,
                                                                               cores);
 
-        logger.info("Instances created: " + instancesIds);
+        List<String> nodeNames = new ArrayList<>();
+        for (String instancesId : instancesIds) {
+            String nodeNamePrefix = parseGCEInstanceTagFromId(instancesId);
+            nodeNames.addAll(RMNodeStarter.getWorkersNodeNames(nodeNamePrefix, numberOfNodesPerInstance));
+        }
+
+        Executors.newSingleThreadExecutor().submit(() -> {
+            List<String> deployingNodes = addMultipleDeployingNodes(nodeNames,
+                                                                    scripts.toString(),
+                                                                    "Node deployment on Google Compute Engine",
+                                                                    nodeTimeout);
+            logger.info("Deploying node: " + deployingNodes);
+        });
     }
 
     @Override
