@@ -29,7 +29,6 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.Executors;
-import java.util.stream.Collectors;
 
 import org.apache.log4j.Logger;
 import org.objectweb.proactive.core.ProActiveException;
@@ -233,17 +232,16 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
                                                      DESTROY_INSTANCES_ON_SHUTDOWN);
 
         // the initial scripts to be executed on each node requires the identification of the instance (i.e., instanceTag), which can be retrieved through its hostname on each instance.
-        final String initCmdInstanceTag = "$HOSTNAME";
-        final String initCmdNodeName = "$HOSTNAME";
-
-        List<String> scripts = linuxInitScriptGenerator.buildScript(initCmdInstanceTag,
+        final String instanceTagOnNode = "$HOSTNAME";
+        final String nodeNameOnNode = "$HOSTNAME";
+        List<String> scripts = linuxInitScriptGenerator.buildScript(instanceTagOnNode,
                                                                     getRmUrl(),
                                                                     rmHostname,
                                                                     INSTANCE_TAG_NODE_PROPERTY,
                                                                     additionalProperties,
                                                                     nodeSource.getName(),
                                                                     numberOfNodesPerInstance,
-                                                                    initCmdNodeName);
+                                                                    nodeNameOnNode);
 
         Set<String> instancesIds = connectorIaasController.createGCEInstances(getInfrastructureId(),
                                                                               getInfrastructureId(),
@@ -258,17 +256,18 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
                                                                               cores);
 
         List<String> nodeNames = new ArrayList<>();
-        for (String instancesId : instancesIds) {
-            String nodeNamePrefix = parseGCEInstanceTagFromId(instancesId);
-            nodeNames.addAll(RMNodeStarter.getWorkersNodeNames(nodeNamePrefix, numberOfNodesPerInstance));
+        for (String instanceId : instancesIds) {
+            String instanceTag = parseGCEInstanceTagFromId(instanceId);
+            nodeNames.addAll(RMNodeStarter.getWorkersNodeNames(instanceTag, numberOfNodesPerInstance));
         }
 
+        // declare nodes as "deploying"
         Executors.newSingleThreadExecutor().submit(() -> {
             List<String> deployingNodes = addMultipleDeployingNodes(nodeNames,
                                                                     scripts.toString(),
                                                                     "Node deployment on Google Compute Engine",
                                                                     nodeTimeout);
-            logger.info("Deploying node: " + deployingNodes);
+            logger.info("Deploying nodes: " + deployingNodes);
         });
     }
 
