@@ -36,6 +36,7 @@ import org.objectweb.proactive.core.node.Node;
 import org.ow2.proactive.resourcemanager.exception.RMException;
 import org.ow2.proactive.resourcemanager.nodesource.common.Configurable;
 import org.ow2.proactive.resourcemanager.nodesource.infrastructure.util.LinuxInitScriptGenerator;
+import org.ow2.proactive.resourcemanager.rmnode.RMDeployingNode;
 import org.ow2.proactive.resourcemanager.utils.RMNodeStarter;
 
 import com.google.common.collect.Maps;
@@ -257,12 +258,12 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
 
         List<String> nodeNames = new ArrayList<>();
         for (String instanceId : instancesIds) {
-            String instanceTag = parseGCEInstanceTagFromId(instanceId);
+            String instanceTag = stringAfterLastSlash(instanceId);
             nodeNames.addAll(RMNodeStarter.getWorkersNodeNames(instanceTag, numberOfNodesPerInstance));
         }
 
         // declare nodes as "deploying"
-        Executors.newSingleThreadExecutor().submit(() -> {
+        Executors.newCachedThreadPool().submit(() -> {
             List<String> deployingNodes = addMultipleDeployingNodes(nodeNames,
                                                                     scripts.toString(),
                                                                     "Node deployment on Google Compute Engine",
@@ -284,6 +285,38 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     }
 
     @Override
+    protected void notifyDeployingNodeLost(String pnURL) {
+        super.notifyDeployingNodeLost(pnURL);
+        logger.info("Unregistering the lost node " + pnURL);
+        RMDeployingNode currentNode = getDeployingOrLostNode(pnURL);
+        String instanceTag = parseInstanceTagFromNodeName(currentNode.getNodeName());
+
+        // Delete the instance when instance doesn't contain any other deploying nodes or persisted nodes
+        if (!existOtherDeployingNodesOnInstance(currentNode, instanceTag) &&
+            !existRegisteredNodesOnInstance(instanceTag)) {
+            connectorIaasController.terminateInstanceByTag(getInfrastructureId(), instanceTag);
+        }
+    }
+
+    private boolean existOtherDeployingNodesOnInstance(RMDeployingNode currentNode, String instanceTag) {
+        for (RMDeployingNode node : getDeployingAndLostNodes()) {
+            if (!node.equals(currentNode) && !node.isLost() &&
+                parseInstanceTagFromNodeName(node.getNodeName()).equals(instanceTag)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean existRegisteredNodesOnInstance(String instanceTag) {
+        nodesPerInstance = getNodesPerInstancesMap();
+        if (nodesPerInstance.get(instanceTag) != null && !nodesPerInstance.get(instanceTag).isEmpty()) {
+            return true;
+        }
+        return false;
+    }
+
+    @Override
     public void removeNode(Node node) throws RMException {
         String instanceId = getInstanceIdProperty(node);
 
@@ -297,6 +330,14 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
                                                 node.getNodeInformation().getName(),
                                                 getInfrastructureId(),
                                                 true);
+    }
+
+    @Override
+    public void shutDown() {
+        super.shutDown();
+        String infrastructureId = getInfrastructureId();
+        logger.info("Deleting infrastructure : " + infrastructureId + " and its underlying instances");
+        connectorIaasController.terminateInfrastructure(infrastructureId, true);
     }
 
     @Override
@@ -360,14 +401,27 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     }
 
     /**
-     * parse the google-compute-engine instance tag from instance id
+     * Get the sub-string after the last slash in 'completeString'.
+     * It is used to :
+     * - parse the GCE instance tag (e.g., gce-afa) from instance id (e.g., https://www.googleapis.com/compute/v1/projects/fifth-totality-235316/zones/us-central1-a/instances/gce-afa)
+     * - parse the node name (e.g., instance-node_0) from deploying node url (e.g., deploying://infra/instance-node_0)
      *
-     * @param instanceId e.g., https://www.googleapis.com/compute/v1/projects/fifth-totality-235316/zones/us-central1-a/instances/gce-afa
-     * @return instanceTag e.g., gce-afa
+     * @param completeString
+     * @return substring after last slash
      */
-    private static String parseGCEInstanceTagFromId(String instanceId) {
-        String[] instanceIdSplit = instanceId.split("/");
-        return instanceIdSplit[instanceIdSplit.length - 1];
+    private static String stringAfterLastSlash(String completeString) {
+        return completeString.substring(completeString.lastIndexOf("/") + 1);
+    }
+
+    /**
+     * Parse the instanceTag (i.e., baseNodeName) from the complete nodeName.
+     * The nodeName may contain an index (e.g., _0, _1) as suffix or not.
+     * @param nodeName (e.g., instance-node_0, instance-node_1, or instance-node)
+     * @return instanceTag (e.g., instance-node)
+     */
+    private static String parseInstanceTagFromNodeName(String nodeName) {
+        int indexSeparator = nodeName.lastIndexOf("_");
+        return indexSeparator == -1 ? nodeName : nodeName.substring(0, indexSeparator);
     }
 
     @Getter
