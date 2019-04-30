@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.log4j.Logger;
 import org.objectweb.proactive.core.node.Node;
@@ -76,6 +77,18 @@ public abstract class AbstractAddonInfrastructure extends InfrastructureManager 
     private static final String INSTANCES_WITHOUT_NODES_MAP_KEY = "instancesWithoutNodesMap";
 
     /**
+     * key to retrieve the number of nodes which are acquired in the persisted
+     * infrastructure variables
+     */
+    private static final String NB_ACQUIRED_NODES_KEY = "nbAcquiredNodes";
+
+    /**
+     * Index of deployment, if startNodes is called multiple times, each time a new process will be created.
+     * The index is used to prevent conflicts in nodes urls
+     */
+    private static final String LAST_STARTED_INSTANCE_INDEX_KEY = "lastNodeStartedIndex";
+
+    /**
      * The controller is transient as it is not supposed to be serialized or
      * saved in database. It should be recreated at start up.
      */
@@ -85,7 +98,11 @@ public abstract class AbstractAddonInfrastructure extends InfrastructureManager 
      * Information about instances and their nodes. Maps the instance
      * identifier to the name of the nodes that belong to it.
      */
-    protected Map<String, Set<String>> nodesPerInstance;
+    protected transient Map<String, Set<String>> nodesPerInstance;
+
+    protected AtomicInteger nbOfAcquiredNodes = new AtomicInteger(0);
+
+    protected AtomicInteger instancesIndex = new AtomicInteger(0);
 
     /**
      * Used to track the nodes that are not in the
@@ -113,6 +130,36 @@ public abstract class AbstractAddonInfrastructure extends InfrastructureManager 
         nodesPerInstance = new HashMap<>();
         nbRemovedNodesPerInstance = new HashMap<>();
         instancesWithoutNodesMap = new HashMap<>();
+    }
+
+    @Override
+    protected void notifyAcquiredNode(Node node) throws RMException {
+        incrementNumberOfAcquiredNodesWithLockAndPersist();
+    }
+
+    private void incrementNumberOfAcquiredNodesWithLockAndPersist() {
+        setPersistedInfraVariable(() -> {
+            this.persistedInfraVariables.put(NB_ACQUIRED_NODES_KEY, nbOfAcquiredNodes.incrementAndGet());
+            return nbOfAcquiredNodes.get();
+        });
+    }
+
+    protected int getNumberOfAcquiredNodesWithLock() {
+        return nbOfAcquiredNodes.get();
+    }
+
+    protected void decrementNumberOfAcquiredNodesWithLockAndPersist() {
+        setPersistedInfraVariable(() -> {
+            this.persistedInfraVariables.put(NB_ACQUIRED_NODES_KEY, nbOfAcquiredNodes.decrementAndGet());
+            return nbOfAcquiredNodes.get();
+        });
+    }
+
+    protected int getIndexAndIncrementWithLockAndPersist() {
+        return setPersistedInfraVariable(() -> {
+            this.persistedInfraVariables.put(LAST_STARTED_INSTANCE_INDEX_KEY, instancesIndex.incrementAndGet());
+            return instancesIndex.get();
+        });
     }
 
     @Override
@@ -158,6 +205,8 @@ public abstract class AbstractAddonInfrastructure extends InfrastructureManager 
         persistedInfraVariables.put(NB_REMOVED_NODES_PER_INSTANCE_KEY, Maps.newHashMap(nbRemovedNodesPerInstance));
         persistedInfraVariables.put(INSTANCES_WITHOUT_NODES_MAP_KEY, Maps.newHashMap(instancesWithoutNodesMap));
         persistedInfraVariables.put(INFRASTRUCTURE_CREATED_FLAG_KEY, false);
+        persistedInfraVariables.put(NB_ACQUIRED_NODES_KEY, nbOfAcquiredNodes);
+        persistedInfraVariables.put(LAST_STARTED_INSTANCE_INDEX_KEY, instancesIndex);
     }
 
     /**
@@ -207,16 +256,21 @@ public abstract class AbstractAddonInfrastructure extends InfrastructureManager 
     @SuppressWarnings("unchecked")
     protected void addNewNodeForInstance(final String instanceId, final String nodeName) {
         setPersistedInfraVariable(() -> {
+
             // first read from the runtime variables map
             nodesPerInstance = (Map<String, Set<String>>) persistedInfraVariables.get(NODES_PER_INSTANCES_KEY);
+
             // make modifications to the nodesPerInstance map
             if (!nodesPerInstance.containsKey(instanceId)) {
                 nodesPerInstance.put(instanceId, new HashSet<String>());
             }
             nodesPerInstance.get(instanceId).add(nodeName);
             logger.info("Node registered: " + nodeName);
+
             // finally write to the runtime variable map
+            incrementNumberOfAcquiredNodesWithLockAndPersist();
             persistedInfraVariables.put(NODES_PER_INSTANCES_KEY, Maps.newHashMap(nodesPerInstance));
+
             return null;
         });
     }
@@ -242,7 +296,7 @@ public abstract class AbstractAddonInfrastructure extends InfrastructureManager 
             // make modifications to the nodesPerInstance map
             if (nodesPerInstance.get(instanceId) != null) {
                 nodesPerInstance.get(instanceId).remove(nodeName);
-                logger.info("Removed node : " + nodeName);
+                logger.info("Removed node: " + nodeName);
                 if (nodesPerInstance.get(instanceId).isEmpty()) {
                     if (terminateInstanceIfEmpty) {
                         connectorIaasController.terminateInstance(infrastructureId, instanceId);
@@ -252,7 +306,9 @@ public abstract class AbstractAddonInfrastructure extends InfrastructureManager 
                     logger.info("Removed instance : " + instanceId);
                 }
                 // finally write to the runtime variable map
+
                 persistedInfraVariables.put(NODES_PER_INSTANCES_KEY, Maps.newHashMap(nodesPerInstance));
+
             } else {
                 logger.error("Cannot remove node " + nodeName + " because instance " + instanceId +
                              " is not registered");
