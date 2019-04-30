@@ -261,7 +261,6 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
             String instanceTag = stringAfterLastSlash(instanceId);
             nodeNames.addAll(RMNodeStarter.getWorkersNodeNames(instanceTag, numberOfNodesPerInstance));
         }
-
         // declare nodes as "deploying"
         Executors.newCachedThreadPool().submit(() -> {
             List<String> deployingNodes = addMultipleDeployingNodes(nodeNames,
@@ -279,9 +278,9 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
 
     @Override
     public void notifyAcquiredNode(Node node) throws RMException {
-        String instanceId = getInstanceIdProperty(node);
+        String instanceTag = getInstanceIdProperty(node);
 
-        addNewNodeForInstance(instanceId, node.getNodeInformation().getName());
+        addNewNodeForInstance(instanceTag, node.getNodeInformation().getName());
     }
 
     @Override
@@ -421,7 +420,12 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
      */
     private static String parseInstanceTagFromNodeName(String nodeName) {
         int indexSeparator = nodeName.lastIndexOf("_");
-        return indexSeparator == -1 ? nodeName : nodeName.substring(0, indexSeparator);
+        if (indexSeparator == -1) {
+            // when nodeName contains no indexSeparator, instanceTag is same as nodeName
+            return nodeName;
+        } else {
+            return nodeName.substring(0, indexSeparator);
+        }
     }
 
     @Getter

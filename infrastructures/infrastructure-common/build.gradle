@@ -12,6 +12,7 @@ dependencies {
 
     compile 'org.apache.httpcomponents:httpclient:4.5.2'
     compile 'org.apache.commons:commons-configuration2:2.2'
+    compile 'org.apache.commons:commons-text:1.6'
     compile 'commons-beanutils:commons-beanutils:1.9.3'
 
     compile 'org.jboss.resteasy:resteasy-jackson-provider:3.0.17.Final'

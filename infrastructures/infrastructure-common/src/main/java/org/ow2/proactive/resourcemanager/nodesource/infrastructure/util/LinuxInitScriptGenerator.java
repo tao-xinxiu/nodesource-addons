@@ -30,6 +30,7 @@ import java.util.List;
 
 import org.apache.commons.configuration2.Configuration;
 import org.apache.commons.configuration2.ex.ConfigurationException;
+import org.apache.commons.text.StringEscapeUtils;
 import org.apache.log4j.Logger;
 
 
@@ -101,6 +102,7 @@ public class LinuxInitScriptGenerator {
     private String generateNodeStartCommand(String instanceId, String rmUrlToUse, String rmHostname,
             String instanceTagNodeProperty, String additionalProperties, String nsName, int numberOfNodesPerInstance,
             String nodeName) {
+        additionalProperties = StringEscapeUtils.escapeXSI(additionalProperties);
 
         String javaCommand = nsConfig.getString(NSProperties.JAVA_COMMAND) + " -jar node.jar";
 
