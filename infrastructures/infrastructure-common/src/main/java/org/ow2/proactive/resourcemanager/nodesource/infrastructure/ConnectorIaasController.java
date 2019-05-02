@@ -215,6 +215,22 @@ public class ConnectorIaasController {
         return createInstance(infrastructureId, instanceTag, instanceJson);
     }
 
+    public Set<String> createGCEInstances(String infrastructureId, String instanceTag, int numberOfInstances,
+            String vmUsername, String vmPublicKey, String vmPrivateKey, List<String> initScripts, String image,
+            String region, int ram, int cores) {
+        String instanceJson = ConnectorIaasJSONTransformer.getGceInstanceJSON(instanceTag,
+                                                                              String.valueOf(numberOfInstances),
+                                                                              vmUsername,
+                                                                              vmPublicKey,
+                                                                              vmPrivateKey,
+                                                                              initScripts,
+                                                                              image,
+                                                                              region,
+                                                                              String.valueOf(ram),
+                                                                              String.valueOf(cores));
+        return createInstance(infrastructureId, instanceTag, instanceJson);
+    }
+
     public Set<String> createOpenstackInstance(String infrastructureId, String instanceTag, String image,
             int numberOfInstances, String hardwareType, String publicKeyName, List<String> scripts) {
 

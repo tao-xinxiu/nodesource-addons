@@ -112,7 +112,9 @@ public class RestClient {
 
     private Response checkResponseIsOK(Response response) {
         if (response.getStatus() != HttpURLConnection.HTTP_OK) {
-            throw new RuntimeException("Failed : HTTP error code : " + response.getStatus());
+            throw new RuntimeException(String.format("Failed: HTTP error code %s with error message: %s. ",
+                                                     response.getStatus(),
+                                                     response.readEntity(String.class)));
         }
         return response;
     }

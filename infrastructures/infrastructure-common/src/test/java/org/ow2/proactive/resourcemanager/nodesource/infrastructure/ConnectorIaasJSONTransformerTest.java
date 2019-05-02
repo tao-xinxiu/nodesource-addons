@@ -28,6 +28,7 @@ package org.ow2.proactive.resourcemanager.nodesource.infrastructure;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 
+import java.util.Arrays;
 import java.util.List;
 
 import org.json.JSONObject;
@@ -140,4 +141,41 @@ public class ConnectorIaasJSONTransformerTest {
         assertThat(actual.getJSONObject("initScript").getJSONArray("scripts").length(), is(0));
     }
 
+    @Test
+    public void testGetGceInstanceJSON() {
+        final String tag = "tag";
+        final String number = "5";
+        final String vmUsername = "username";
+        final String vmPublicKey = "publicKey";
+        final String vmPrivateKey = "privateKey";
+        final List<String> initScripts = Arrays.asList("cmd 1", "cmd 2");
+        final String image = "image";
+        final String region = "region";
+        final String ram = "1024";
+        final String cores = "2";
+
+        JSONObject actual = new JSONObject(ConnectorIaasJSONTransformer.getGceInstanceJSON(tag,
+                                                                                           number,
+                                                                                           vmUsername,
+                                                                                           vmPublicKey,
+                                                                                           vmPrivateKey,
+                                                                                           initScripts,
+                                                                                           image,
+                                                                                           region,
+                                                                                           ram,
+                                                                                           cores));
+
+        assertThat(actual.getString("tag"), is(tag));
+        assertThat(actual.getString("number"), is(number));
+        assertThat(actual.getString("image"), is(image));
+        assertThat(actual.getJSONObject("credentials").getString("username"), is(vmUsername));
+        assertThat(actual.getJSONObject("credentials").getString("publicKey"), is(vmPublicKey));
+        assertThat(actual.getJSONObject("credentials").getString("privateKey"), is(vmPrivateKey));
+        assertThat(actual.getJSONObject("initScript").getJSONArray("scripts").length(), is(2));
+        assertThat(actual.getJSONObject("initScript").getJSONArray("scripts").getString(0), is("cmd 1"));
+        assertThat(actual.getJSONObject("initScript").getJSONArray("scripts").getString(1), is("cmd 2"));
+        assertThat(actual.getJSONObject("options").getString("region"), is(region));
+        assertThat(actual.getJSONObject("hardware").getString("minRam"), is(ram));
+        assertThat(actual.getJSONObject("hardware").getString("minCores"), is(cores));
+    }
 }
