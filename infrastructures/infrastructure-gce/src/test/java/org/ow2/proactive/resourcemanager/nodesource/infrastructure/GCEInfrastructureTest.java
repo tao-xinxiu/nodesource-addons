@@ -253,8 +253,8 @@ public class GCEInfrastructureTest {
                                                   anyString(),
                                                   anyString(),
                                                   anyString(),
-                                                  anyInt(),
-                                                  anyString())).thenReturn(initScripts);
+                                                  anyString(),
+                                                  anyInt())).thenReturn(initScripts);
 
         gceInfrastructure.acquireNode();
 

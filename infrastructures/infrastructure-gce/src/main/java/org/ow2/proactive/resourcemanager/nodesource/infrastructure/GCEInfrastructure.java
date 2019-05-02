@@ -241,8 +241,8 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
                                                                     INSTANCE_TAG_NODE_PROPERTY,
                                                                     additionalProperties,
                                                                     nodeSource.getName(),
-                                                                    numberOfNodesPerInstance,
-                                                                    nodeNameOnNode);
+                                                                    nodeNameOnNode,
+                                                                    numberOfNodesPerInstance);
 
         Set<String> instancesIds = connectorIaasController.createGCEInstances(getInfrastructureId(),
                                                                               getInfrastructureId(),
