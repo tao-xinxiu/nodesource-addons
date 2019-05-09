@@ -29,6 +29,9 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.Executors;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.apache.log4j.Logger;
 import org.objectweb.proactive.core.ProActiveException;
@@ -69,6 +72,16 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     private static final boolean DESTROY_INSTANCES_ON_SHUTDOWN = true;
 
     private transient LinuxInitScriptGenerator linuxInitScriptGenerator = new LinuxInitScriptGenerator();
+
+    // The lock is used to limit the impact of a jclouds bug (When the google-compute-engine account has any deleting instance,
+    // any jclouds gce instances operations will fail).
+    private static ReadWriteLock deletingLock = new ReentrantReadWriteLock();
+
+    // wrap the read access to deletingLock, used when performing any jclouds gce instances operations other than deleting
+    private static Lock readDeletingLock = deletingLock.readLock();
+
+    // wrap the write access to deletingLock, used when performing deleting operation
+    private static Lock writeDeletingLock = deletingLock.writeLock();
 
     @Configurable(fileBrowser = true, description = "The JSON key file path of your Google Cloud Platform service account")
     protected GCECredential gceCredential = null;
@@ -224,6 +237,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
 
     @Override
     public void acquireNode() {
+
         connectorIaasController.waitForConnectorIaasToBeUP();
 
         connectorIaasController.createInfrastructure(getInfrastructureId(),
@@ -244,18 +258,23 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
                                                                     nodeNameOnNode,
                                                                     numberOfNodesPerInstance);
 
-        Set<String> instancesIds = connectorIaasController.createGCEInstances(getInfrastructureId(),
-                                                                              getInfrastructureId(),
-                                                                              numberOfInstances,
-                                                                              vmUsername,
-                                                                              vmPublicKey,
-                                                                              vmPrivateKey,
-                                                                              scripts,
-                                                                              image,
-                                                                              region,
-                                                                              ram,
-                                                                              cores);
-
+        readDeletingLock.lock();
+        Set<String> instancesIds = new HashSet<>();
+        try {
+            instancesIds = connectorIaasController.createGCEInstances(getInfrastructureId(),
+                                                                      getInfrastructureId(),
+                                                                      numberOfInstances,
+                                                                      vmUsername,
+                                                                      vmPublicKey,
+                                                                      vmPrivateKey,
+                                                                      scripts,
+                                                                      image,
+                                                                      region,
+                                                                      ram,
+                                                                      cores);
+        } finally {
+            readDeletingLock.unlock();
+        }
         List<String> nodeNames = new ArrayList<>();
         for (String instanceId : instancesIds) {
             String instanceTag = stringAfterLastSlash(instanceId);
@@ -269,6 +288,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
                                                                     nodeTimeout);
             logger.info("Deploying nodes: " + deployingNodes);
         });
+
     }
 
     @Override
@@ -293,7 +313,13 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         // Delete the instance when instance doesn't contain any other deploying nodes or persisted nodes
         if (!existOtherDeployingNodesOnInstance(currentNode, instanceTag) &&
             !existRegisteredNodesOnInstance(instanceTag)) {
-            connectorIaasController.terminateInstanceByTag(getInfrastructureId(), instanceTag);
+            writeDeletingLock.lock();
+            try {
+                connectorIaasController.terminateInstanceByTag(getInfrastructureId(), instanceTag);
+                logger.info("Terminated the instance: " + instanceTag);
+            } finally {
+                writeDeletingLock.unlock();
+            }
         }
     }
 
@@ -329,14 +355,6 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
                                                 node.getNodeInformation().getName(),
                                                 getInfrastructureId(),
                                                 true);
-    }
-
-    @Override
-    public void shutDown() {
-        super.shutDown();
-        String infrastructureId = getInfrastructureId();
-        logger.info("Deleting infrastructure : " + infrastructureId + " and its underlying instances");
-        connectorIaasController.terminateInfrastructure(infrastructureId, true);
     }
 
     @Override
@@ -383,7 +401,12 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
                 logger.info("Removed node : " + nodeName);
                 if (nodesPerInstance.get(instanceTag).isEmpty()) {
                     if (terminateInstanceIfEmpty) {
-                        connectorIaasController.terminateInstanceByTag(infrastructureId, instanceTag);
+                        writeDeletingLock.lock();
+                        try {
+                            connectorIaasController.terminateInstanceByTag(infrastructureId, instanceTag);
+                        } finally {
+                            writeDeletingLock.unlock();
+                        }
                         logger.info("Instance terminated: " + instanceTag);
                     }
                     nodesPerInstance.remove(instanceTag);
