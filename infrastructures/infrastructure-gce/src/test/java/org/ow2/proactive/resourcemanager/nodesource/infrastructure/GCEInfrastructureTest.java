@@ -44,6 +44,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.Spy;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 import org.objectweb.proactive.core.ProActiveException;
 import org.objectweb.proactive.core.node.Node;
 import org.objectweb.proactive.core.node.NodeInformation;
@@ -310,7 +312,7 @@ public class GCEInfrastructureTest {
     }
 
     @Test
-    public void testRemoveNode() throws RMException, ProActiveException {
+    public void testRemoveNode() throws ProActiveException {
         gceInfrastructure.configure(CREDENTIAL_FILE,
                                     NUMBER_INSTANCES,
                                     NUMBER_NODES_PER_INSTANCE,
@@ -328,8 +330,15 @@ public class GCEInfrastructureTest {
                                     NODE_TIMEOUT);
         // re-assign needed because gceInfrastructure.configure new the object gceInfrastructure.connectorIaasController
         gceInfrastructure.connectorIaasController = connectorIaasController;
+        doAnswer((Answer<Object>) invocation -> {
+            ((Runnable) invocation.getArguments()[0]).run();
+            return null;
+        }).when(nodeSource).executeInParallel(any(Runnable.class));
+
         final String instanceTag = "instance-tag";
+
         final String nodeName = "node-name";
+
         when(node.getProperty(GCEInfrastructure.INSTANCE_TAG_NODE_PROPERTY)).thenReturn(instanceTag);
         when(node.getProActiveRuntime()).thenReturn(proActiveRuntime);
         when(node.getNodeInformation()).thenReturn(nodeInformation);
