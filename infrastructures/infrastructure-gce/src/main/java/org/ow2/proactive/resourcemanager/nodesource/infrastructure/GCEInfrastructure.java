@@ -160,63 +160,81 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         }
         int parameterIndex = 0;
         // gceCredential
-        if (parameters[parameterIndex++] == null) {
+        if (parameters[parameterIndex] == null) {
             throw new IllegalArgumentException("The Google Cloud Platform service account must be specified");
         }
         // numberOfInstances
-        if (parameters[parameterIndex++] == null) {
+        parameterIndex++;
+        if (parameters[parameterIndex] == null) {
             throw new IllegalArgumentException("The number of instances to create must be specified");
         }
         // numberOfNodesPerInstance
-        if (parameters[parameterIndex++] == null) {
+        parameterIndex++;
+        if (parameters[parameterIndex] == null) {
             throw new IllegalArgumentException("The number of nodes per instance to deploy must be specified");
         }
         // vmUsername
+        parameterIndex++;
         if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = "";
+            parameters[parameterIndex] = "";
         }
         // vmPublicKey
+        parameterIndex++;
         if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = "";
+            parameters[parameterIndex] = "";
         }
         // vmPrivateKey
+        parameterIndex++;
         if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = "";
+            parameters[parameterIndex] = "";
         }
         // rmHostname
-        if (parameters[parameterIndex++] == null) {
+        parameterIndex++;
+        if (parameters[parameterIndex] == null) {
             throw new IllegalArgumentException("The resource manager hostname must be specified");
         }
+        if (parameters[parameterIndex].toString().contains("/")) {
+            throw new IllegalArgumentException(String.format("Invalid hostname %s (hostname should not contains '/').",
+                                                             parameters[parameterIndex]));
+        }
         // connectorIaasURL
-        if (parameters[parameterIndex++] == null) {
+        parameterIndex++;
+        if (parameters[parameterIndex] == null) {
             throw new IllegalArgumentException("The connector-iaas URL must be specified");
         }
         // downloadCommand
-        if (parameters[parameterIndex++] == null) {
+        parameterIndex++;
+        if (parameters[parameterIndex] == null) {
             throw new IllegalArgumentException("The command for downloading the node jar must be specified");
         }
         // additionalProperties
+        parameterIndex++;
         if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = "";
+            parameters[parameterIndex] = "";
         }
         // image
+        parameterIndex++;
         if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = DEFAULT_IMAGE;
+            parameters[parameterIndex] = DEFAULT_IMAGE;
         }
         // region
+        parameterIndex++;
         if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = DEFAULT_REGION;
+            parameters[parameterIndex] = DEFAULT_REGION;
         }
         // ram
+        parameterIndex++;
         if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = String.valueOf(DEFAULT_RAM);
+            parameters[parameterIndex] = String.valueOf(DEFAULT_RAM);
         }
         // cores
+        parameterIndex++;
         if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = String.valueOf(DEFAULT_CORES);
+            parameters[parameterIndex] = String.valueOf(DEFAULT_CORES);
         }
         // nodeTimeout
-        if (parameters[parameterIndex++] == null) {
+        parameterIndex++;
+        if (parameters[parameterIndex] == null) {
             throw new IllegalArgumentException("The node timeout must be specified");
         }
     }
