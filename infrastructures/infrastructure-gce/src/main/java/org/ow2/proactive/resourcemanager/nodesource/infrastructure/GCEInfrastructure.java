@@ -358,6 +358,18 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     }
 
     @Override
+    public void shutDown() {
+        super.shutDown();
+        String infrastructureId = getInfrastructureId();
+        logger.info("Deleting infrastructure : " + infrastructureId + " and its underlying instances");
+        // should not delete instances here, because
+        // 1) terminateInfrastructure delete all the instances deployed with the infrastructure credential.
+        // (i.e., if multiple infrastructures use the same credential, it will delete the instances of other infrastructures.)
+        // 2) RMCore has already called removeNode for all the nodes belong to the infrastructure
+        connectorIaasController.terminateInfrastructure(infrastructureId, false);
+    }
+
+    @Override
     protected String getInstanceIdProperty(Node node) throws RMException {
         try {
             return node.getProperty(INSTANCE_TAG_NODE_PROPERTY);
