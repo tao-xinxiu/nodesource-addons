@@ -44,6 +44,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.Spy;
+import org.mockito.stubbing.Answer;
 import org.objectweb.proactive.core.ProActiveException;
 import org.objectweb.proactive.core.node.Node;
 import org.objectweb.proactive.core.node.NodeInformation;
@@ -310,7 +311,7 @@ public class GCEInfrastructureTest {
     }
 
     @Test
-    public void testRemoveNode() throws RMException, ProActiveException {
+    public void testRemoveNode() throws ProActiveException {
         gceInfrastructure.configure(CREDENTIAL_FILE,
                                     NUMBER_INSTANCES,
                                     NUMBER_NODES_PER_INSTANCE,
@@ -328,6 +329,10 @@ public class GCEInfrastructureTest {
                                     NODE_TIMEOUT);
         // re-assign needed because gceInfrastructure.configure new the object gceInfrastructure.connectorIaasController
         gceInfrastructure.connectorIaasController = connectorIaasController;
+        doAnswer((Answer<Object>) invocation -> {
+            ((Runnable) invocation.getArguments()[0]).run();
+            return null;
+        }).when(nodeSource).executeInParallel(any(Runnable.class));
         final String instanceTag = "instance-tag";
         final String nodeName = "node-name";
         when(node.getProperty(GCEInfrastructure.INSTANCE_TAG_NODE_PROPERTY)).thenReturn(instanceTag);
@@ -370,6 +375,10 @@ public class GCEInfrastructureTest {
         doReturn(node).when(gceInfrastructure).getDeployingOrLostNode(anyString());
         gceInfrastructure.getNodesPerInstancesMap().put(instanceTag, Sets.newHashSet());
         doReturn(Arrays.asList(node)).when(gceInfrastructure).getDeployingAndLostNodes();
+        doAnswer((Answer<Object>) invocation -> {
+            ((Runnable) invocation.getArguments()[0]).run();
+            return null;
+        }).when(nodeSource).executeInParallel(any(Runnable.class));
         when(nodeSource.getName()).thenReturn(INFRASTRUCTURE_ID);
 
         gceInfrastructure.notifyDeployingNodeLost(nodeUrl);
@@ -401,6 +410,10 @@ public class GCEInfrastructureTest {
         gceInfrastructure.connectorIaasController = connectorIaasController;
         RMDeployingNode node = new RMDeployingNode(nodeName, new NodeSource(), "", new Client());
         doReturn(node).when(gceInfrastructure).getDeployingOrLostNode(anyString());
+        doAnswer((Answer<Object>) invocation -> {
+            ((Runnable) invocation.getArguments()[0]).run();
+            return null;
+        }).when(nodeSource).executeInParallel(any(Runnable.class));
         gceInfrastructure.getNodesPerInstancesMap()
                          .put(instanceTag, new HashSet<>(Arrays.asList("pamr://4097/node_0", "pamr://4097/node_1")));
 
@@ -415,7 +428,6 @@ public class GCEInfrastructureTest {
         final String nodeName1 = instanceTag + "_0";
         final String nodeName2 = instanceTag + "_1";
         final String nodeUrl1 = String.format("deploying://%s/%s", INFRASTRUCTURE_ID, nodeName1);
-        final String nodeUrl2 = String.format("deploying://%s/%s", INFRASTRUCTURE_ID, nodeName2);
         gceInfrastructure.configure(CREDENTIAL_FILE,
                                     NUMBER_INSTANCES,
                                     NUMBER_NODES_PER_INSTANCE,
@@ -438,6 +450,10 @@ public class GCEInfrastructureTest {
         gceInfrastructure.getNodesPerInstancesMap().put(instanceTag, Sets.newHashSet());
         RMDeployingNode node2 = new RMDeployingNode(nodeName2, new NodeSource(), "", new Client());
         doReturn(Arrays.asList(node1, node2)).when(gceInfrastructure).getDeployingAndLostNodes();
+        doAnswer((Answer<Object>) invocation -> {
+            ((Runnable) invocation.getArguments()[0]).run();
+            return null;
+        }).when(nodeSource).executeInParallel(any(Runnable.class));
         when(nodeSource.getName()).thenReturn(INFRASTRUCTURE_ID);
 
         gceInfrastructure.notifyDeployingNodeLost(nodeUrl1);
@@ -451,7 +467,6 @@ public class GCEInfrastructureTest {
         final String nodeName1 = instanceTag + "_0";
         final String nodeName2 = instanceTag + "_1";
         final String nodeUrl1 = String.format("deploying://%s/%s", INFRASTRUCTURE_ID, nodeName1);
-        final String nodeUrl2 = String.format("deploying://%s/%s", INFRASTRUCTURE_ID, nodeName2);
         gceInfrastructure.configure(CREDENTIAL_FILE,
                                     NUMBER_INSTANCES,
                                     NUMBER_NODES_PER_INSTANCE,
@@ -475,6 +490,10 @@ public class GCEInfrastructureTest {
         RMDeployingNode node2 = new RMDeployingNode(nodeName2, new NodeSource(), "", new Client());
         node2.setLost();
         doReturn(Arrays.asList(node1, node2)).when(gceInfrastructure).getDeployingAndLostNodes();
+        doAnswer((Answer<Object>) invocation -> {
+            ((Runnable) invocation.getArguments()[0]).run();
+            return null;
+        }).when(nodeSource).executeInParallel(any(Runnable.class));
         when(nodeSource.getName()).thenReturn(INFRASTRUCTURE_ID);
 
         gceInfrastructure.notifyDeployingNodeLost(nodeUrl1);

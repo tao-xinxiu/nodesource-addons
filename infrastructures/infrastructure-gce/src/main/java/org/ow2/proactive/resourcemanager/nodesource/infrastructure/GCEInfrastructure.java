@@ -29,6 +29,9 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.Executors;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.apache.log4j.Logger;
 import org.objectweb.proactive.core.ProActiveException;
@@ -69,6 +72,16 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     private static final boolean DESTROY_INSTANCES_ON_SHUTDOWN = true;
 
     private transient LinuxInitScriptGenerator linuxInitScriptGenerator = new LinuxInitScriptGenerator();
+
+    // The lock is used to limit the impact of a jclouds bug (When the google-compute-engine account has any deleting instance,
+    // any jclouds gce instances operations will fail).
+    private static ReadWriteLock deletingLock = new ReentrantReadWriteLock();
+
+    // wrap the read access to deletingLock, used when performing any jclouds gce instances operations other than deleting
+    private static Lock readDeletingLock = deletingLock.readLock();
+
+    // wrap the write access to deletingLock, used when performing deleting operation
+    private static Lock writeDeletingLock = deletingLock.writeLock();
 
     @Configurable(fileBrowser = true, description = "The JSON key file path of your Google Cloud Platform service account")
     protected GCECredential gceCredential = null;
@@ -147,63 +160,81 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         }
         int parameterIndex = 0;
         // gceCredential
-        if (parameters[parameterIndex++] == null) {
+        if (parameters[parameterIndex] == null) {
             throw new IllegalArgumentException("The Google Cloud Platform service account must be specified");
         }
         // numberOfInstances
-        if (parameters[parameterIndex++] == null) {
+        parameterIndex++;
+        if (parameters[parameterIndex] == null) {
             throw new IllegalArgumentException("The number of instances to create must be specified");
         }
         // numberOfNodesPerInstance
-        if (parameters[parameterIndex++] == null) {
+        parameterIndex++;
+        if (parameters[parameterIndex] == null) {
             throw new IllegalArgumentException("The number of nodes per instance to deploy must be specified");
         }
         // vmUsername
+        parameterIndex++;
         if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = "";
+            parameters[parameterIndex] = "";
         }
         // vmPublicKey
+        parameterIndex++;
         if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = "";
+            parameters[parameterIndex] = "";
         }
         // vmPrivateKey
+        parameterIndex++;
         if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = "";
+            parameters[parameterIndex] = "";
         }
         // rmHostname
-        if (parameters[parameterIndex++] == null) {
+        parameterIndex++;
+        if (parameters[parameterIndex] == null) {
             throw new IllegalArgumentException("The resource manager hostname must be specified");
         }
+        if (parameters[parameterIndex].toString().contains("/")) {
+            throw new IllegalArgumentException(String.format("Invalid hostname %s (hostname should not contains '/').",
+                                                             parameters[parameterIndex]));
+        }
         // connectorIaasURL
-        if (parameters[parameterIndex++] == null) {
+        parameterIndex++;
+        if (parameters[parameterIndex] == null) {
             throw new IllegalArgumentException("The connector-iaas URL must be specified");
         }
         // downloadCommand
-        if (parameters[parameterIndex++] == null) {
+        parameterIndex++;
+        if (parameters[parameterIndex] == null) {
             throw new IllegalArgumentException("The command for downloading the node jar must be specified");
         }
         // additionalProperties
+        parameterIndex++;
         if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = "";
+            parameters[parameterIndex] = "";
         }
         // image
+        parameterIndex++;
         if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = DEFAULT_IMAGE;
+            parameters[parameterIndex] = DEFAULT_IMAGE;
         }
         // region
+        parameterIndex++;
         if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = DEFAULT_REGION;
+            parameters[parameterIndex] = DEFAULT_REGION;
         }
         // ram
+        parameterIndex++;
         if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = String.valueOf(DEFAULT_RAM);
+            parameters[parameterIndex] = String.valueOf(DEFAULT_RAM);
         }
         // cores
+        parameterIndex++;
         if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = String.valueOf(DEFAULT_CORES);
+            parameters[parameterIndex] = String.valueOf(DEFAULT_CORES);
         }
         // nodeTimeout
-        if (parameters[parameterIndex++] == null) {
+        parameterIndex++;
+        if (parameters[parameterIndex] == null) {
             throw new IllegalArgumentException("The node timeout must be specified");
         }
     }
@@ -244,18 +275,23 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
                                                                     nodeNameOnNode,
                                                                     numberOfNodesPerInstance);
 
-        Set<String> instancesIds = connectorIaasController.createGCEInstances(getInfrastructureId(),
-                                                                              getInfrastructureId(),
-                                                                              numberOfInstances,
-                                                                              vmUsername,
-                                                                              vmPublicKey,
-                                                                              vmPrivateKey,
-                                                                              scripts,
-                                                                              image,
-                                                                              region,
-                                                                              ram,
-                                                                              cores);
-
+        readDeletingLock.lock();
+        Set<String> instancesIds = new HashSet<>();
+        try {
+            instancesIds = connectorIaasController.createGCEInstances(getInfrastructureId(),
+                                                                      getInfrastructureId(),
+                                                                      numberOfInstances,
+                                                                      vmUsername,
+                                                                      vmPublicKey,
+                                                                      vmPrivateKey,
+                                                                      scripts,
+                                                                      image,
+                                                                      region,
+                                                                      ram,
+                                                                      cores);
+        } finally {
+            readDeletingLock.unlock();
+        }
         List<String> nodeNames = new ArrayList<>();
         for (String instanceId : instancesIds) {
             String instanceTag = stringAfterLastSlash(instanceId);
@@ -293,7 +329,15 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         // Delete the instance when instance doesn't contain any other deploying nodes or persisted nodes
         if (!existOtherDeployingNodesOnInstance(currentNode, instanceTag) &&
             !existRegisteredNodesOnInstance(instanceTag)) {
-            connectorIaasController.terminateInstanceByTag(getInfrastructureId(), instanceTag);
+            nodeSource.executeInParallel(() -> {
+                writeDeletingLock.lock();
+                try {
+                    connectorIaasController.terminateInstanceByTag(getInfrastructureId(), instanceTag);
+                    logger.info("Terminated the instance: " + instanceTag);
+                } finally {
+                    writeDeletingLock.unlock();
+                }
+            });
         }
     }
 
@@ -316,19 +360,19 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     }
 
     @Override
-    public void removeNode(Node node) throws RMException {
-        String instanceId = getInstanceIdProperty(node);
-
-        try {
-            node.getProActiveRuntime().killNode(node.getNodeInformation().getName());
-        } catch (Exception e) {
-            logger.warn("Unable to remove the node '" + node.getNodeInformation().getName() + "' with error: " + e);
-        }
-
-        unregisterNodeAndRemoveInstanceIfNeeded(instanceId,
-                                                node.getNodeInformation().getName(),
-                                                getInfrastructureId(),
-                                                true);
+    public void removeNode(Node node) {
+        nodeSource.executeInParallel(() -> {
+            try {
+                String instanceId = getInstanceIdProperty(node);
+                node.getProActiveRuntime().killNode(node.getNodeInformation().getName());
+                unregisterNodeAndRemoveInstanceIfNeeded(instanceId,
+                                                        node.getNodeInformation().getName(),
+                                                        getInfrastructureId(),
+                                                        true);
+            } catch (Exception e) {
+                logger.warn("Unable to remove the node '" + node.getNodeInformation().getName() + "' with error: " + e);
+            }
+        });
     }
 
     @Override
@@ -336,7 +380,11 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         super.shutDown();
         String infrastructureId = getInfrastructureId();
         logger.info("Deleting infrastructure : " + infrastructureId + " and its underlying instances");
-        connectorIaasController.terminateInfrastructure(infrastructureId, true);
+        // should not delete instances here, because
+        // 1) terminateInfrastructure delete all the instances deployed with the infrastructure credential.
+        // (i.e., if multiple infrastructures use the same credential, it will delete the instances of other infrastructures.)
+        // 2) RMCore has already called removeNode for all the nodes belong to the infrastructure
+        connectorIaasController.terminateInfrastructure(infrastructureId, false);
     }
 
     @Override
@@ -383,7 +431,12 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
                 logger.info("Removed node : " + nodeName);
                 if (nodesPerInstance.get(instanceTag).isEmpty()) {
                     if (terminateInstanceIfEmpty) {
-                        connectorIaasController.terminateInstanceByTag(infrastructureId, instanceTag);
+                        writeDeletingLock.lock();
+                        try {
+                            connectorIaasController.terminateInstanceByTag(infrastructureId, instanceTag);
+                        } finally {
+                            writeDeletingLock.unlock();
+                        }
                         logger.info("Instance terminated: " + instanceTag);
                     }
                     nodesPerInstance.remove(instanceTag);
