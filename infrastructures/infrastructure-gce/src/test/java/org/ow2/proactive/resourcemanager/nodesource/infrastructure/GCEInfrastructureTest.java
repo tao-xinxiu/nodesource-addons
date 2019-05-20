@@ -34,9 +34,7 @@ import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.*;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
+import java.util.*;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -71,9 +69,9 @@ public class GCEInfrastructureTest {
     private static final byte[] CREDENTIAL_FILE = ("{\"private_key\": \"" + PRIVATE_KEY_RAW +
                                                    "\", \"client_email\": \"" + CLIENT_EMAIL + "\"}").getBytes();
 
-    private static final int NUMBER_INSTANCES = 2;
+    private static final int NUMBER_INSTANCES = 4;
 
-    private static final int NUMBER_NODES_PER_INSTANCE = 3;
+    private static final int NUMBER_NODES_PER_INSTANCE = 2;
 
     private static final String VM_USERNAME = "username";
 
@@ -140,7 +138,7 @@ public class GCEInfrastructureTest {
     @Test
     public void testInitialParameters() {
         assertThat(gceInfrastructure.gceCredential, is(nullValue()));
-        assertThat(gceInfrastructure.numberOfInstances, is(1));
+        assertThat(gceInfrastructure.totalNumberOfInstances, is(1));
         assertThat(gceInfrastructure.numberOfNodesPerInstance, is(1));
         assertThat(gceInfrastructure.vmUsername, is(nullValue()));
         assertThat(gceInfrastructure.vmPublicKey, is(nullValue()));
@@ -178,7 +176,7 @@ public class GCEInfrastructureTest {
 
         assertThat(gceInfrastructure.gceCredential.clientEmail, is(CLIENT_EMAIL));
         assertThat(gceInfrastructure.gceCredential.privateKey, is(PRIVATE_KEY));
-        assertThat(gceInfrastructure.numberOfInstances, is(NUMBER_INSTANCES));
+        assertThat(gceInfrastructure.totalNumberOfInstances, is(NUMBER_INSTANCES));
         assertThat(gceInfrastructure.numberOfNodesPerInstance, is(NUMBER_NODES_PER_INSTANCE));
         assertThat(gceInfrastructure.vmUsername, is(VM_USERNAME));
         assertThat(gceInfrastructure.vmPublicKey, is(VM_PUBLIC_KEY));
@@ -229,7 +227,7 @@ public class GCEInfrastructureTest {
     }
 
     @Test
-    public void testAcquireNode() {
+    public void testAcquireAllNodes() {
         gceInfrastructure.configure(CREDENTIAL_FILE,
                                     NUMBER_INSTANCES,
                                     NUMBER_NODES_PER_INSTANCE,
@@ -257,7 +255,7 @@ public class GCEInfrastructureTest {
                                                   anyString(),
                                                   anyInt())).thenReturn(initScripts);
 
-        gceInfrastructure.acquireNode();
+        gceInfrastructure.acquireAllNodes();
 
         verify(connectorIaasController, times(1)).waitForConnectorIaasToBeUP();
         verify(connectorIaasController, times(1)).createInfrastructure(INFRASTRUCTURE_ID,
@@ -268,6 +266,217 @@ public class GCEInfrastructureTest {
         verify(connectorIaasController, times(1)).createGCEInstances(INFRASTRUCTURE_ID,
                                                                      INFRASTRUCTURE_ID,
                                                                      NUMBER_INSTANCES,
+                                                                     VM_USERNAME,
+                                                                     VM_PUBLIC_KEY,
+                                                                     VM_PRIVATE_KEY,
+                                                                     initScripts,
+                                                                     IMAGE,
+                                                                     REGION,
+                                                                     RAM,
+                                                                     CORES);
+    }
+
+    @Test
+    public void testAcquireNodes() {
+        final int numberOfNodes = 5;
+        final Map<String, ?> nodeConfiguration = new HashMap<String, Object>() {
+            {
+                put("TOTAL_NUMBER_OF_NODES", 7);
+                put("MAX_NODES", 10);
+            }
+        };
+        final int existingNodes = 2;
+        final int wantedInstanceToDeploy = 3;
+        gceInfrastructure.configure(CREDENTIAL_FILE,
+                                    NUMBER_INSTANCES,
+                                    NUMBER_NODES_PER_INSTANCE,
+                                    VM_USERNAME,
+                                    VM_PUBLIC_KEY_BYTES,
+                                    VM_PRIVATE_KEY_BYTES,
+                                    RM_HOSTNAME,
+                                    CONNECTOR_IAAS_URL,
+                                    DOWNLOAD_COMMAND,
+                                    ADDITIONAL_PROPERTIES,
+                                    IMAGE,
+                                    REGION,
+                                    RAM,
+                                    CORES,
+                                    NODE_TIMEOUT);
+        // re-assign needed because gceInfrastructure.configure new the object gceInfrastructure.connectorIaasController
+        gceInfrastructure.connectorIaasController = connectorIaasController;
+        doAnswer((Answer<Object>) invocation -> {
+            ((Runnable) invocation.getArguments()[0]).run();
+            return null;
+        }).when(nodeSource).executeInParallel(any(Runnable.class));
+        when(nodeSource.getNodesCount()).thenReturn(existingNodes);
+        gceInfrastructure.getNodesPerInstancesMap().put("existed-instance", Sets.newHashSet());
+        when(nodeSource.getName()).thenReturn(INFRASTRUCTURE_ID);
+        when(linuxInitScriptGenerator.buildScript(anyString(),
+                                                  anyString(),
+                                                  anyString(),
+                                                  anyString(),
+                                                  anyString(),
+                                                  anyString(),
+                                                  anyString(),
+                                                  anyInt())).thenReturn(initScripts);
+
+        gceInfrastructure.acquireNodes(numberOfNodes, nodeConfiguration);
+
+        verify(connectorIaasController, times(1)).waitForConnectorIaasToBeUP();
+        verify(connectorIaasController, times(1)).createInfrastructure(INFRASTRUCTURE_ID,
+                                                                       CLIENT_EMAIL,
+                                                                       PRIVATE_KEY,
+                                                                       null,
+                                                                       DESTROY_INSTANCES_ON_SHUTDOWN);
+        verify(connectorIaasController, times(1)).createGCEInstances(INFRASTRUCTURE_ID,
+                                                                     INFRASTRUCTURE_ID,
+                                                                     wantedInstanceToDeploy,
+                                                                     VM_USERNAME,
+                                                                     VM_PUBLIC_KEY,
+                                                                     VM_PRIVATE_KEY,
+                                                                     initScripts,
+                                                                     IMAGE,
+                                                                     REGION,
+                                                                     RAM,
+                                                                     CORES);
+    }
+
+    /**
+     * Test the case when the number of instance to deploy decides by the constraints of max number of instances.
+     * For example, given the situation with:
+     * - 10 required new nodes, with 2 nodes per instance (i.e., require 5 new instances)
+     * - 4 max number of instances, and 1 existing instances
+     * Then acquireNodes should only deploy 4-1=3 instances.
+     */
+    @Test
+    public void testAcquireNodesGivenMoreThanMaxInstances() {
+        final int numberOfNodes = 10;
+        final Map<String, ?> nodeConfiguration = new HashMap<String, Object>() {
+            {
+                put("TOTAL_NUMBER_OF_NODES", 12);
+                put("MAX_NODES", 20);
+            }
+        };
+        final int existingNodes = 2;
+        final int existingInstance = 1;
+        final int wantedInstanceToDeploy = NUMBER_INSTANCES - existingInstance;
+        gceInfrastructure.configure(CREDENTIAL_FILE,
+                                    NUMBER_INSTANCES,
+                                    NUMBER_NODES_PER_INSTANCE,
+                                    VM_USERNAME,
+                                    VM_PUBLIC_KEY_BYTES,
+                                    VM_PRIVATE_KEY_BYTES,
+                                    RM_HOSTNAME,
+                                    CONNECTOR_IAAS_URL,
+                                    DOWNLOAD_COMMAND,
+                                    ADDITIONAL_PROPERTIES,
+                                    IMAGE,
+                                    REGION,
+                                    RAM,
+                                    CORES,
+                                    NODE_TIMEOUT);
+        // re-assign needed because gceInfrastructure.configure new the object gceInfrastructure.connectorIaasController
+        gceInfrastructure.connectorIaasController = connectorIaasController;
+        doAnswer((Answer<Object>) invocation -> {
+            ((Runnable) invocation.getArguments()[0]).run();
+            return null;
+        }).when(nodeSource).executeInParallel(any(Runnable.class));
+        when(nodeSource.getNodesCount()).thenReturn(existingNodes);
+        gceInfrastructure.getNodesPerInstancesMap().put("existed-instance", Sets.newHashSet());
+        when(nodeSource.getName()).thenReturn(INFRASTRUCTURE_ID);
+        when(linuxInitScriptGenerator.buildScript(anyString(),
+                                                  anyString(),
+                                                  anyString(),
+                                                  anyString(),
+                                                  anyString(),
+                                                  anyString(),
+                                                  anyString(),
+                                                  anyInt())).thenReturn(initScripts);
+
+        gceInfrastructure.acquireNodes(numberOfNodes, nodeConfiguration);
+
+        verify(connectorIaasController, times(1)).waitForConnectorIaasToBeUP();
+        verify(connectorIaasController, times(1)).createInfrastructure(INFRASTRUCTURE_ID,
+                                                                       CLIENT_EMAIL,
+                                                                       PRIVATE_KEY,
+                                                                       null,
+                                                                       DESTROY_INSTANCES_ON_SHUTDOWN);
+        verify(connectorIaasController, times(1)).createGCEInstances(INFRASTRUCTURE_ID,
+                                                                     INFRASTRUCTURE_ID,
+                                                                     wantedInstanceToDeploy,
+                                                                     VM_USERNAME,
+                                                                     VM_PUBLIC_KEY,
+                                                                     VM_PRIVATE_KEY,
+                                                                     initScripts,
+                                                                     IMAGE,
+                                                                     REGION,
+                                                                     RAM,
+                                                                     CORES);
+    }
+
+    /**
+     * Test the case when the number of instance to deploy decides by the constraints of max number of nodes.
+     * For example, given the situation with:
+     * - 3 required new nodes, with 2 nodes per instance (i.e., require 2 new instances -> 4 new nodes)
+     * - 5 max number of nodes
+     * - 1 existing instances, 2 existing nodes
+     * Then acquireNodes should only deploy 1 instances.
+     */
+    @Test
+    public void testAcquireNodesGivenMoreThanMaxNodes() {
+        final int numberOfNodes = 3;
+        final Map<String, ?> nodeConfiguration = new HashMap<String, Object>() {
+            {
+                put("TOTAL_NUMBER_OF_NODES", 5);
+                put("MAX_NODES", 5);
+            }
+        };
+        final int existingNodes = 2;
+        final int wantedInstanceToDeploy = 1;
+        gceInfrastructure.configure(CREDENTIAL_FILE,
+                                    NUMBER_INSTANCES,
+                                    NUMBER_NODES_PER_INSTANCE,
+                                    VM_USERNAME,
+                                    VM_PUBLIC_KEY_BYTES,
+                                    VM_PRIVATE_KEY_BYTES,
+                                    RM_HOSTNAME,
+                                    CONNECTOR_IAAS_URL,
+                                    DOWNLOAD_COMMAND,
+                                    ADDITIONAL_PROPERTIES,
+                                    IMAGE,
+                                    REGION,
+                                    RAM,
+                                    CORES,
+                                    NODE_TIMEOUT);
+        // re-assign needed because gceInfrastructure.configure new the object gceInfrastructure.connectorIaasController
+        gceInfrastructure.connectorIaasController = connectorIaasController;
+        doAnswer((Answer<Object>) invocation -> {
+            ((Runnable) invocation.getArguments()[0]).run();
+            return null;
+        }).when(nodeSource).executeInParallel(any(Runnable.class));
+        when(nodeSource.getNodesCount()).thenReturn(existingNodes);
+        gceInfrastructure.getNodesPerInstancesMap().put("existed-instance", Sets.newHashSet());
+        when(nodeSource.getName()).thenReturn(INFRASTRUCTURE_ID);
+        when(linuxInitScriptGenerator.buildScript(anyString(),
+                                                  anyString(),
+                                                  anyString(),
+                                                  anyString(),
+                                                  anyString(),
+                                                  anyString(),
+                                                  anyString(),
+                                                  anyInt())).thenReturn(initScripts);
+
+        gceInfrastructure.acquireNodes(numberOfNodes, nodeConfiguration);
+
+        verify(connectorIaasController, times(1)).waitForConnectorIaasToBeUP();
+        verify(connectorIaasController, times(1)).createInfrastructure(INFRASTRUCTURE_ID,
+                                                                       CLIENT_EMAIL,
+                                                                       PRIVATE_KEY,
+                                                                       null,
+                                                                       DESTROY_INSTANCES_ON_SHUTDOWN);
+        verify(connectorIaasController, times(1)).createGCEInstances(INFRASTRUCTURE_ID,
+                                                                     INFRASTRUCTURE_ID,
+                                                                     wantedInstanceToDeploy,
                                                                      VM_USERNAME,
                                                                      VM_PUBLIC_KEY,
                                                                      VM_PRIVATE_KEY,
@@ -374,7 +583,7 @@ public class GCEInfrastructureTest {
         RMDeployingNode node = new RMDeployingNode(nodeName, new NodeSource(), "", new Client());
         doReturn(node).when(gceInfrastructure).getDeployingOrLostNode(anyString());
         gceInfrastructure.getNodesPerInstancesMap().put(instanceTag, Sets.newHashSet());
-        doReturn(Arrays.asList(node)).when(gceInfrastructure).getDeployingAndLostNodes();
+        doReturn(Collections.singletonList(node)).when(gceInfrastructure).getDeployingAndLostNodes();
         doAnswer((Answer<Object>) invocation -> {
             ((Runnable) invocation.getArguments()[0]).run();
             return null;
@@ -500,4 +709,5 @@ public class GCEInfrastructureTest {
 
         verify(connectorIaasController, times(1)).terminateInstanceByTag(INFRASTRUCTURE_ID, instanceTag);
     }
+
 }

@@ -99,7 +99,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     protected GCECredential gceCredential = null;
 
     @Configurable(description = "Total instances to create (maximum number of instances in case of dynamic policy)")
-    protected int numberOfInstances = 1;
+    protected int totalNumberOfInstances = 1;
 
     @Configurable(description = "Total nodes to create per instance")
     protected int numberOfNodesPerInstance = 1;
@@ -147,8 +147,6 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
 
     private static final String MAX_NODES_KEY = "MAX_NODES";
 
-    private int nbNodesToStart;
-
     @Override
     public void configure(Object... parameters) {
         logger.info("Validating parameters : " + Arrays.toString(parameters));
@@ -157,7 +155,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         int parameterIndex = 0;
 
         this.gceCredential = getCredentialFromJsonKeyFile((byte[]) parameters[parameterIndex++]);
-        this.numberOfInstances = Integer.parseInt(parameters[parameterIndex++].toString().trim());
+        this.totalNumberOfInstances = Integer.parseInt(parameters[parameterIndex++].toString().trim());
         this.numberOfNodesPerInstance = Integer.parseInt(parameters[parameterIndex++].toString().trim());
         this.vmUsername = parameters[parameterIndex++].toString().trim();
         this.vmPublicKey = new String((byte[]) parameters[parameterIndex++]);
@@ -184,7 +182,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         if (parameters[parameterIndex] == null) {
             throw new IllegalArgumentException("The Google Cloud Platform service account must be specified");
         }
-        // numberOfInstances
+        // totalNumberOfInstances
         parameterIndex++;
         if (parameters[parameterIndex] == null) {
             throw new IllegalArgumentException("The number of instances to create must be specified");
@@ -276,140 +274,111 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
 
     @Override
     public void acquireNode() {
-        connectorIaasController.waitForConnectorIaasToBeUP();
-
-        createInfrastructureIfNeeded();
-
-        List<String> nodeStartCmds = buildNodeStartScripts(numberOfNodesPerInstance);
-
-        Set<String> instancesIds = createInstanceWithNodesStartCmd(numberOfInstances, nodeStartCmds);
-
-        declareDeployingNodes(instancesIds, nodeStartCmds);
+        deployInstancesWithFullNodes(1);
     }
 
     @Override
     public void acquireAllNodes() {
-        acquireNode();
+        deployInstancesWithFullNodes(totalNumberOfInstances);
     }
 
     @Override
     public synchronized void acquireNodes(final int numberOfNodes, final Map<String, ?> nodeConfiguration) {
-        logger.info("----------------------------------------");
-        logger.info("acquireNodes numberOfNodes: " + numberOfNodes);
-        logger.info("nodeConfiguration: " + nodeConfiguration);
+        logger.info(String.format("Acquiring %d nodes with the configuration: %s.", numberOfNodes, nodeConfiguration));
+
         nodeSource.executeInParallel(() -> {
             if (dynamicAcquireLock.tryLock()) {
                 try {
-                    internalAcquireNodes(numberOfNodes, nodeConfiguration);
+                    int nbInstancesToDeploy = calNumberOfInstancesToDeploy(numberOfNodes, nodeConfiguration);
+                    if (nbInstancesToDeploy <= 0) {
+                        logger.info("No need to deploy new instances, acquireNodes skipped.");
+                        return;
+                    }
+                    deployInstancesWithFullNodes(nbInstancesToDeploy);
                 } catch (Exception e) {
                     logger.error("Error during node acquisition", e);
                 } finally {
                     dynamicAcquireLock.unlock();
                 }
             } else {
-                logger.info("acquireNodes skipped because infrastructure is busy.");
+                logger.info("Infrastructure is busy, acquireNodes skipped.");
             }
         });
     }
 
-    private void internalAcquireNodes(int numberOfNodes, Map<String, ?> dynamicPolicyParameters) {
+    /**
+     * deploy {@code nbInstancesToDeploy} instances with  {@code numberOfNodesPerInstance} nodes on each instance
+     * @param nbInstancesToDeploy number of instances to deploy
+     */
+    private void deployInstancesWithFullNodes(int nbInstancesToDeploy) {
+        logger.info(String.format("Deploying %d instances with %d nodes on each instance.",
+                                  nbInstancesToDeploy,
+                                  numberOfNodesPerInstance));
 
-        nbNodesToStart = numberOfNodes;
-        //TODO fix checkDynamicPolicyParameters (it change nbNodesToStart
-        if (nbNodesToStart <= 0 || !checkDynamicPolicyParameters(nbNodesToStart, dynamicPolicyParameters)) {
-            logger.info("No need to acquire new nodes.");
-            return;
-        }
-
-        int nbInstancesToDeploy = calInstancesToDeploy();
-        if (!needToDeployInstances(nbInstancesToDeploy)) {
-            logger.info("No need to deploy new instances.");
-            return;
-        }
-
-        logger.info(String.format("Deploying %d instances with %d nodes.", nbNodesToStart, nbInstancesToDeploy));
+        connectorIaasController.waitForConnectorIaasToBeUP();
 
         createInfrastructureIfNeeded();
 
-        List<String> startScriptsForFullNodes = buildNodeStartScripts(numberOfNodesPerInstance);
-        if (nbNodesToStart % numberOfNodesPerInstance == 0) {
-            // all instances deploy the same number of nodes
-            Set<String> instancesIds = createInstanceWithNodesStartCmd(nbInstancesToDeploy, startScriptsForFullNodes);
-            declareDeployingNodes(instancesIds, startScriptsForFullNodes);
-        } else {
-            // deploy first the instances with the full number of nodes
-            Set<String> instancesIds = createInstanceWithNodesStartCmd(nbInstancesToDeploy - 1,
-                                                                       startScriptsForFullNodes);
-            declareDeployingNodes(instancesIds, startScriptsForFullNodes);
-            // deploy the last instance with the rest required number of nodes
-            int nbRestNodesToStart = nbNodesToStart % numberOfNodesPerInstance;
-            List<String> startScriptsForRestNodes = buildNodeStartScripts(nbRestNodesToStart);
-            Set<String> lastInstanceId = createInstanceWithNodesStartCmd(1, startScriptsForRestNodes);
-            declareDeployingNodes(lastInstanceId, startScriptsForRestNodes);
-        }
+        List<String> nodeStartCmds = buildNodeStartScripts(numberOfNodesPerInstance);
+
+        Set<String> instancesIds = createInstanceWithNodesStartCmd(nbInstancesToDeploy, nodeStartCmds);
+
+        declareDeployingNodes(instancesIds, numberOfNodesPerInstance, nodeStartCmds.toString());
     }
 
-    // check that all the dynamic policy parameters exist and are correct
-    private boolean checkDynamicPolicyParameters(int numberOfNodes, Map<String, ?> dynamicPolicyParameters) {
+    // Calculate the required number of instances to deploy, with numberOfNodesPerInstance nodes on each instance,
+    // while conforming to the constraint of max instances number and max nodes number
+    // Note we may deploy more nodes then required as long as it not exceeds max nodes number.
+    private int calNumberOfInstancesToDeploy(final int numberOfNodes, Map<String, ?> dynamicPolicyParameters) {
 
+        if (!dynamicPolicyParameters.containsKey(MAX_NODES_KEY)) {
+            throw new IllegalArgumentException("The dynamic policy parameters should include the maximal number of nodes");
+        }
         if (!dynamicPolicyParameters.containsKey(TOTAL_NUMBER_OF_NODES_KEY)) {
-            logger.info("The dynamic policy parameters must include the total number of nodes");
-            return false;
-        } else if (!dynamicPolicyParameters.containsKey(MAX_NODES_KEY)) {
-            logger.info("The dynamic policy parameters must include the maximal number of nodes");
-            return false;
+            throw new IllegalArgumentException("The dynamic policy parameters should include the total number of nodes");
         }
+        final int nbMaxNodes = (Integer) dynamicPolicyParameters.get(MAX_NODES_KEY);
+        final int nbTotalNodes = (Integer) dynamicPolicyParameters.get(TOTAL_NUMBER_OF_NODES_KEY);
 
-        int nbExistingNodes = getNumberOfAcquiredNodesWithLock(); //TODO fix
-        int nbTotalNodes = (Integer) dynamicPolicyParameters.get(TOTAL_NUMBER_OF_NODES_KEY);
-        int nbMaxNodes = (Integer) dynamicPolicyParameters.get(MAX_NODES_KEY);
-
-        if (nbExistingNodes == nbTotalNodes) {
-            logger.info(String.format("The number of existing nodes (%d) is equal to total number of nodes required by the dynamic policy (%d), so node acquisition is skipped!",
-                                      nbExistingNodes,
-                                      nbTotalNodes));
-            return false;
-        }
-
-        if (nbExistingNodes + numberOfNodes != nbTotalNodes) {
-            logger.warn(String.format("Dynamic policy is misconfigured. The total number of nodes (%d) does not correspond to the sum of existing nodes (%d) and the new nodes to add (%d).",
-                                      nbTotalNodes,
-                                      nbExistingNodes,
-                                      numberOfNodes));
-            return false;
-        }
-
-        // check that the maximal number of nodes is not reached
+        final int nbExistingNodes = nodeSource.getNodesCount();
         if ((nbExistingNodes + numberOfNodes) > nbMaxNodes) {
-            nbNodesToStart = nbMaxNodes - nbExistingNodes;
-            logger.warn(String.format("The sum of existing nodes (%d) and required nodes (%d) is greater than the maximal number of nodes (%d) allowed by the dynamic policy, so deploying only %d nodes.",
-                                      nbExistingNodes,
-                                      numberOfNodes,
-                                      nbMaxNodes,
-                                      nbNodesToStart));
+            throw new IllegalArgumentException(String.format("The sum of existing nodes (%d) and required new nodes (%d) should not be greater than the maximal number of nodes (%d) allowed by the dynamic policy.",
+                                                             nbExistingNodes,
+                                                             numberOfNodes,
+                                                             nbMaxNodes));
         }
-        return true;
-    }
-
-    private int calInstancesToDeploy() {
-        int nbInstancesNeededForNodes = (int) Math.ceil((double) nbNodesToStart / numberOfNodesPerInstance);
-        return Math.min(nbInstancesNeededForNodes, numberOfInstances);
-    }
-
-    private boolean needToDeployInstances(int nbInstancesToDeploy) {
-        if (nbInstancesToDeploy == 0) {
-            logger.info("No need to add new instances to the infrastructure: " + getInfrastructureId());
-            return false;
+        if (nbExistingNodes + numberOfNodes != nbTotalNodes) {
+            throw new IllegalArgumentException(String.format("The sum of existing nodes (%d) and required new nodes (%d) should be equal to the total number of nodes (%d).",
+                                                             nbExistingNodes,
+                                                             numberOfNodes,
+                                                             nbTotalNodes));
         }
-        int nbExistingInstances = getNodesPerInstancesMapCopy().size();
-        if (nbExistingInstances + nbInstancesToDeploy > numberOfInstances) {
-            logger.info(String.format("The sum of existing instances (%d) and the instances to deploy (%d) exceeds the number of instances allowed by the nodesource (%d), so node acquisition is skipped!",
+
+        int nbInstancesToDeploy = numberOfNodes / numberOfNodesPerInstance +
+                                  ((numberOfNodes % numberOfNodesPerInstance == 0) ? 0 : 1);
+
+        final int nbExistingInstances = getExistingInstancesNumber();
+
+        if (nbExistingInstances + nbInstancesToDeploy > totalNumberOfInstances) {
+            logger.info(String.format("The sum of existing instances (%d) and required instances (%d) is greater than the maximal number of instance (%d), so the number of instances to deploy is reduced to %d.",
                                       nbExistingInstances,
                                       nbInstancesToDeploy,
-                                      numberOfInstances));
-            return false;
+                                      totalNumberOfInstances,
+                                      totalNumberOfInstances - nbExistingInstances));
+            nbInstancesToDeploy = totalNumberOfInstances - nbExistingInstances;
         }
-        return true;
+
+        if ((nbExistingInstances + nbInstancesToDeploy) * numberOfNodesPerInstance > nbMaxNodes) {
+            logger.info(String.format("The sum of existing instances (%d) and required instances (%d) will start number of nodes (%d) more than maximal number of nodes (%d), so the number of instances to deploy is reduced to %d.",
+                                      nbExistingInstances,
+                                      nbInstancesToDeploy,
+                                      (nbExistingInstances + nbInstancesToDeploy) * numberOfNodesPerInstance,
+                                      nbMaxNodes,
+                                      nbMaxNodes / numberOfNodesPerInstance - nbExistingInstances));
+            nbInstancesToDeploy = nbMaxNodes / numberOfNodesPerInstance - nbExistingInstances;
+        }
+
+        return nbInstancesToDeploy;
     }
 
     private void createInfrastructureIfNeeded() {
@@ -454,16 +423,16 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         }
     }
 
-    private void declareDeployingNodes(Set<String> instancesIds, List<String> nodeStartCmd) {
+    private void declareDeployingNodes(Set<String> instancesIds, int nbNodesPerInstance, String nodeStartCmd) {
         List<String> nodeNames = new ArrayList<>();
         for (String instanceId : instancesIds) {
             String instanceTag = stringAfterLastSlash(instanceId);
-            nodeNames.addAll(RMNodeStarter.getWorkersNodeNames(instanceTag, numberOfNodesPerInstance));
+            nodeNames.addAll(RMNodeStarter.getWorkersNodeNames(instanceTag, nbNodesPerInstance));
         }
         // declare nodes as "deploying"
         Executors.newCachedThreadPool().submit(() -> {
             List<String> deployingNodes = addMultipleDeployingNodes(nodeNames,
-                                                                    nodeStartCmd.toString(),
+                                                                    nodeStartCmd,
                                                                     "Node deployment on Google Compute Engine",
                                                                     nodeTimeout);
             logger.info("Deploying nodes: " + deployingNodes);
@@ -497,6 +466,10 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
                 }
             });
         }
+    }
+
+    private int getExistingInstancesNumber() {
+        return getNodesPerInstancesMapCopy().size();
     }
 
     private boolean existOtherDeployingNodesOnInstance(RMDeployingNode currentNode, String instanceTag) {
