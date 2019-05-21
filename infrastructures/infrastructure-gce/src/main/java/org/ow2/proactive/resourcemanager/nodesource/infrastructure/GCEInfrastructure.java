@@ -155,8 +155,8 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         int parameterIndex = 0;
 
         this.gceCredential = getCredentialFromJsonKeyFile((byte[]) parameters[parameterIndex++]);
-        this.totalNumberOfInstances = Integer.parseInt(parameters[parameterIndex++].toString().trim());
-        this.numberOfNodesPerInstance = Integer.parseInt(parameters[parameterIndex++].toString().trim());
+        this.totalNumberOfInstances = parseIntParameter("totalNumberOfInstances", parameters[parameterIndex++]);
+        this.numberOfNodesPerInstance = parseIntParameter("numberOfNodesPerInstance", parameters[parameterIndex++]);
         this.vmUsername = parameters[parameterIndex++].toString().trim();
         this.vmPublicKey = new String((byte[]) parameters[parameterIndex++]);
         this.vmPrivateKey = new String((byte[]) parameters[parameterIndex++]);
@@ -166,9 +166,9 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         this.additionalProperties = parameters[parameterIndex++].toString().trim();
         this.image = parameters[parameterIndex++].toString().trim();
         this.region = parameters[parameterIndex++].toString().trim();
-        this.ram = Integer.parseInt(parameters[parameterIndex++].toString().trim());
-        this.cores = Integer.parseInt(parameters[parameterIndex++].toString().trim());
-        this.nodeTimeout = Integer.parseInt(parameters[parameterIndex++].toString().trim());
+        this.ram = parseIntParameter("ram", parameters[parameterIndex++]);
+        this.cores = parseIntParameter("cores", parameters[parameterIndex++]);
+        this.nodeTimeout = parseIntParameter("nodeTimeout", parameters[parameterIndex++]);
 
         connectorIaasController = new ConnectorIaasController(connectorIaasURL, INFRASTRUCTURE_TYPE);
     }
@@ -255,6 +255,16 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         parameterIndex++;
         if (parameters[parameterIndex] == null) {
             throw new IllegalArgumentException("The node timeout must be specified");
+        }
+    }
+
+    private int parseIntParameter(String parameterName, Object parameter) {
+        try {
+            return Integer.parseInt(parameter.toString().trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(String.format("Non numeric value (\"%s\") for the parameter \"%s\".",
+                                                             parameter.toString(),
+                                                             parameterName));
         }
     }
 
