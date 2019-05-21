@@ -89,6 +89,13 @@ public abstract class AbstractAddonInfrastructure extends InfrastructureManager 
     private static final String LAST_STARTED_INSTANCE_INDEX_KEY = "lastNodeStartedIndex";
 
     /**
+     * Dynamic policy parameters key
+     **/
+    private static final String TOTAL_NUMBER_OF_NODES_KEY = "TOTAL_NUMBER_OF_NODES";
+
+    private static final String MAX_NODES_KEY = "MAX_NODES";
+
+    /**
      * The controller is transient as it is not supposed to be serialized or
      * saved in database. It should be recreated at start up.
      */
@@ -395,6 +402,71 @@ public abstract class AbstractAddonInfrastructure extends InfrastructureManager 
                          exception);
         }
         return acquireNodeTriggered;
+    }
+
+    /**
+     * Calculate the required number of instances to deploy, with numberOfNodesPerInstance nodes on each instance,
+     * while conforming to the constraint of max instances number and max nodes number.
+     * Note we may deploy more nodes then required as long as it not exceeds max nodes number.
+     * @param numberOfNodesRequested number of nodes requested to add
+     * @param dynamicPolicyParameters parameters of dynamic policy, should contain MAX_NODES and TOTAL_NUMBER_OF_NODES
+     * @return the number of instance to deploy
+     */
+    protected int calNumberOfInstancesToDeploy(final int numberOfNodesRequested, Map<String, ?> dynamicPolicyParameters,
+            int maxNumberOfInstances, int numberOfNodesPerInstance) {
+
+        if (!dynamicPolicyParameters.containsKey(MAX_NODES_KEY)) {
+            throw new IllegalArgumentException("The dynamic policy parameters should include the maximal number of nodes");
+        }
+        if (!dynamicPolicyParameters.containsKey(TOTAL_NUMBER_OF_NODES_KEY)) {
+            throw new IllegalArgumentException("The dynamic policy parameters should include the total number of nodes");
+        }
+        final int nbMaxNodes = (Integer) dynamicPolicyParameters.get(MAX_NODES_KEY);
+        final int nbTotalNodes = (Integer) dynamicPolicyParameters.get(TOTAL_NUMBER_OF_NODES_KEY);
+
+        final int nbExistingNodes = nodeSource.getNodesCount();
+        if ((nbExistingNodes + numberOfNodesRequested) > nbMaxNodes) {
+            throw new IllegalArgumentException(String.format("The sum of existing nodes (%d) and required new nodes (%d) should not be greater than the maximal number of nodes (%d) allowed by the dynamic policy.",
+                                                             nbExistingNodes,
+                                                             numberOfNodesRequested,
+                                                             nbMaxNodes));
+        }
+        if (nbExistingNodes + numberOfNodesRequested != nbTotalNodes) {
+            throw new IllegalArgumentException(String.format("The sum of existing nodes (%d) and required new nodes (%d) should be equal to the total number of nodes (%d).",
+                                                             nbExistingNodes,
+                                                             numberOfNodesRequested,
+                                                             nbTotalNodes));
+        }
+
+        int nbInstancesToDeploy = numberOfNodesRequested / numberOfNodesPerInstance +
+                                  ((numberOfNodesRequested % numberOfNodesPerInstance == 0) ? 0 : 1);
+
+        final int nbExistingInstances = getExistingInstancesNumber();
+
+        if (nbExistingInstances + nbInstancesToDeploy > maxNumberOfInstances) {
+            logger.info(String.format("The sum of existing instances (%d) and required instances (%d) is greater than the maximal number of instance (%d), so the number of instances to deploy is reduced to %d.",
+                                      nbExistingInstances,
+                                      nbInstancesToDeploy,
+                                      maxNumberOfInstances,
+                                      maxNumberOfInstances - nbExistingInstances));
+            nbInstancesToDeploy = maxNumberOfInstances - nbExistingInstances;
+        }
+
+        if ((nbExistingInstances + nbInstancesToDeploy) * numberOfNodesPerInstance > nbMaxNodes) {
+            logger.info(String.format("The sum of existing instances (%d) and required instances (%d) will start number of nodes (%d) more than maximal number of nodes (%d), so the number of instances to deploy is reduced to %d.",
+                                      nbExistingInstances,
+                                      nbInstancesToDeploy,
+                                      (nbExistingInstances + nbInstancesToDeploy) * numberOfNodesPerInstance,
+                                      nbMaxNodes,
+                                      nbMaxNodes / numberOfNodesPerInstance - nbExistingInstances));
+            nbInstancesToDeploy = nbMaxNodes / numberOfNodesPerInstance - nbExistingInstances;
+        }
+
+        return nbInstancesToDeploy;
+    }
+
+    private int getExistingInstancesNumber() {
+        return getNodesPerInstancesMapCopy().size();
     }
 
     /**

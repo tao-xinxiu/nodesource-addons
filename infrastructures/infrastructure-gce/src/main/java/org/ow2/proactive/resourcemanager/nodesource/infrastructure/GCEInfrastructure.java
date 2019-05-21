@@ -140,13 +140,6 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     @Configurable(description = "Node timeout in ms. After this timeout expired, the node is considered to be lost")
     protected int nodeTimeout = 2 * 60 * 1000;// 2 min
 
-    /**
-     * Dynamic policy parameters
-     **/
-    private static final String TOTAL_NUMBER_OF_NODES_KEY = "TOTAL_NUMBER_OF_NODES";
-
-    private static final String MAX_NODES_KEY = "MAX_NODES";
-
     @Override
     public void configure(Object... parameters) {
         logger.info("Validating parameters : " + Arrays.toString(parameters));
@@ -279,7 +272,6 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
             throw new IllegalArgumentException("Can't reading the GCE service account JSON key file: " +
                                                new String(credsFile));
         }
-
     }
 
     @Override
@@ -299,7 +291,10 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         nodeSource.executeInParallel(() -> {
             if (dynamicAcquireLock.tryLock()) {
                 try {
-                    int nbInstancesToDeploy = calNumberOfInstancesToDeploy(numberOfNodes, nodeConfiguration);
+                    int nbInstancesToDeploy = calNumberOfInstancesToDeploy(numberOfNodes,
+                                                                           nodeConfiguration,
+                                                                           totalNumberOfInstances,
+                                                                           numberOfNodesPerInstance);
                     if (nbInstancesToDeploy <= 0) {
                         logger.info("No need to deploy new instances, acquireNodes skipped.");
                         return;
@@ -334,61 +329,6 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         Set<String> instancesIds = createInstanceWithNodesStartCmd(nbInstancesToDeploy, nodeStartCmds);
 
         declareDeployingNodes(instancesIds, numberOfNodesPerInstance, nodeStartCmds.toString());
-    }
-
-    // Calculate the required number of instances to deploy, with numberOfNodesPerInstance nodes on each instance,
-    // while conforming to the constraint of max instances number and max nodes number
-    // Note we may deploy more nodes then required as long as it not exceeds max nodes number.
-    private int calNumberOfInstancesToDeploy(final int numberOfNodes, Map<String, ?> dynamicPolicyParameters) {
-
-        if (!dynamicPolicyParameters.containsKey(MAX_NODES_KEY)) {
-            throw new IllegalArgumentException("The dynamic policy parameters should include the maximal number of nodes");
-        }
-        if (!dynamicPolicyParameters.containsKey(TOTAL_NUMBER_OF_NODES_KEY)) {
-            throw new IllegalArgumentException("The dynamic policy parameters should include the total number of nodes");
-        }
-        final int nbMaxNodes = (Integer) dynamicPolicyParameters.get(MAX_NODES_KEY);
-        final int nbTotalNodes = (Integer) dynamicPolicyParameters.get(TOTAL_NUMBER_OF_NODES_KEY);
-
-        final int nbExistingNodes = nodeSource.getNodesCount();
-        if ((nbExistingNodes + numberOfNodes) > nbMaxNodes) {
-            throw new IllegalArgumentException(String.format("The sum of existing nodes (%d) and required new nodes (%d) should not be greater than the maximal number of nodes (%d) allowed by the dynamic policy.",
-                                                             nbExistingNodes,
-                                                             numberOfNodes,
-                                                             nbMaxNodes));
-        }
-        if (nbExistingNodes + numberOfNodes != nbTotalNodes) {
-            throw new IllegalArgumentException(String.format("The sum of existing nodes (%d) and required new nodes (%d) should be equal to the total number of nodes (%d).",
-                                                             nbExistingNodes,
-                                                             numberOfNodes,
-                                                             nbTotalNodes));
-        }
-
-        int nbInstancesToDeploy = numberOfNodes / numberOfNodesPerInstance +
-                                  ((numberOfNodes % numberOfNodesPerInstance == 0) ? 0 : 1);
-
-        final int nbExistingInstances = getExistingInstancesNumber();
-
-        if (nbExistingInstances + nbInstancesToDeploy > totalNumberOfInstances) {
-            logger.info(String.format("The sum of existing instances (%d) and required instances (%d) is greater than the maximal number of instance (%d), so the number of instances to deploy is reduced to %d.",
-                                      nbExistingInstances,
-                                      nbInstancesToDeploy,
-                                      totalNumberOfInstances,
-                                      totalNumberOfInstances - nbExistingInstances));
-            nbInstancesToDeploy = totalNumberOfInstances - nbExistingInstances;
-        }
-
-        if ((nbExistingInstances + nbInstancesToDeploy) * numberOfNodesPerInstance > nbMaxNodes) {
-            logger.info(String.format("The sum of existing instances (%d) and required instances (%d) will start number of nodes (%d) more than maximal number of nodes (%d), so the number of instances to deploy is reduced to %d.",
-                                      nbExistingInstances,
-                                      nbInstancesToDeploy,
-                                      (nbExistingInstances + nbInstancesToDeploy) * numberOfNodesPerInstance,
-                                      nbMaxNodes,
-                                      nbMaxNodes / numberOfNodesPerInstance - nbExistingInstances));
-            nbInstancesToDeploy = nbMaxNodes / numberOfNodesPerInstance - nbExistingInstances;
-        }
-
-        return nbInstancesToDeploy;
     }
 
     private void createInfrastructureIfNeeded() {
@@ -476,10 +416,6 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
                 }
             });
         }
-    }
-
-    private int getExistingInstancesNumber() {
-        return getNodesPerInstancesMapCopy().size();
     }
 
     private boolean existOtherDeployingNodesOnInstance(RMDeployingNode currentNode, String instanceTag) {
