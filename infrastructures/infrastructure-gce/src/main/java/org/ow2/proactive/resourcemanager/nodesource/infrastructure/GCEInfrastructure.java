@@ -31,6 +31,7 @@ import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.apache.log4j.Logger;
@@ -71,6 +72,12 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
 
     private static final boolean DESTROY_INSTANCES_ON_SHUTDOWN = true;
 
+    // the initial scripts to be executed on each node requires the identification of the instance (i.e., instanceTag), which can be retrieved through its hostname on each instance.
+    private static final String INSTANCE_TAG_ON_NODE = "$HOSTNAME";
+
+    // use the instanceTag as the nodeName
+    private static final String NODE_NAME_ON_NODE = "$HOSTNAME";
+
     private transient LinuxInitScriptGenerator linuxInitScriptGenerator = new LinuxInitScriptGenerator();
 
     // The lock is used to limit the impact of a jclouds bug (When the google-compute-engine account has any deleting instance,
@@ -83,11 +90,16 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     // wrap the write access to deletingLock, used when performing deleting operation
     private static Lock writeDeletingLock = deletingLock.writeLock();
 
+    // Lock for acquireNodes (dynamic policy)
+    private final transient Lock dynamicAcquireLock = new ReentrantLock();
+
+    private boolean isCreatedInfrastructure = false;
+
     @Configurable(fileBrowser = true, description = "The JSON key file path of your Google Cloud Platform service account")
     protected GCECredential gceCredential = null;
 
-    @Configurable(description = "Total instance to create")
-    protected int numberOfInstances = 1;
+    @Configurable(description = "Total instances to create (maximum number of instances in case of dynamic policy)")
+    protected int totalNumberOfInstances = 1;
 
     @Configurable(description = "Total nodes to create per instance")
     protected int numberOfNodesPerInstance = 1;
@@ -136,8 +148,8 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         int parameterIndex = 0;
 
         this.gceCredential = getCredentialFromJsonKeyFile((byte[]) parameters[parameterIndex++]);
-        this.numberOfInstances = Integer.parseInt(parameters[parameterIndex++].toString().trim());
-        this.numberOfNodesPerInstance = Integer.parseInt(parameters[parameterIndex++].toString().trim());
+        this.totalNumberOfInstances = parseIntParameter("totalNumberOfInstances", parameters[parameterIndex++]);
+        this.numberOfNodesPerInstance = parseIntParameter("numberOfNodesPerInstance", parameters[parameterIndex++]);
         this.vmUsername = parameters[parameterIndex++].toString().trim();
         this.vmPublicKey = new String((byte[]) parameters[parameterIndex++]);
         this.vmPrivateKey = new String((byte[]) parameters[parameterIndex++]);
@@ -147,9 +159,9 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         this.additionalProperties = parameters[parameterIndex++].toString().trim();
         this.image = parameters[parameterIndex++].toString().trim();
         this.region = parameters[parameterIndex++].toString().trim();
-        this.ram = Integer.parseInt(parameters[parameterIndex++].toString().trim());
-        this.cores = Integer.parseInt(parameters[parameterIndex++].toString().trim());
-        this.nodeTimeout = Integer.parseInt(parameters[parameterIndex++].toString().trim());
+        this.ram = parseIntParameter("ram", parameters[parameterIndex++]);
+        this.cores = parseIntParameter("cores", parameters[parameterIndex++]);
+        this.nodeTimeout = parseIntParameter("nodeTimeout", parameters[parameterIndex++]);
 
         connectorIaasController = new ConnectorIaasController(connectorIaasURL, INFRASTRUCTURE_TYPE);
     }
@@ -163,7 +175,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         if (parameters[parameterIndex] == null) {
             throw new IllegalArgumentException("The Google Cloud Platform service account must be specified");
         }
-        // numberOfInstances
+        // totalNumberOfInstances
         parameterIndex++;
         if (parameters[parameterIndex] == null) {
             throw new IllegalArgumentException("The number of instances to create must be specified");
@@ -239,6 +251,16 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         }
     }
 
+    private int parseIntParameter(String parameterName, Object parameter) {
+        try {
+            return Integer.parseInt(parameter.toString().trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(String.format("Non numeric value (\"%s\") for the parameter \"%s\".",
+                                                             parameter.toString(),
+                                                             parameterName));
+        }
+    }
+
     private GCECredential getCredentialFromJsonKeyFile(byte[] credsFile) {
         try {
             final JsonObject json = new JsonParser().parse(new String(credsFile)).getAsJsonObject();
@@ -250,66 +272,121 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
             throw new IllegalArgumentException("Can't reading the GCE service account JSON key file: " +
                                                new String(credsFile));
         }
-
     }
 
     @Override
     public void acquireNode() {
-        connectorIaasController.waitForConnectorIaasToBeUP();
-
-        connectorIaasController.createInfrastructure(getInfrastructureId(),
-                                                     gceCredential.clientEmail,
-                                                     gceCredential.privateKey,
-                                                     null,
-                                                     DESTROY_INSTANCES_ON_SHUTDOWN);
-
-        // the initial scripts to be executed on each node requires the identification of the instance (i.e., instanceTag), which can be retrieved through its hostname on each instance.
-        final String instanceTagOnNode = "$HOSTNAME";
-        final String nodeNameOnNode = "$HOSTNAME";
-        List<String> scripts = linuxInitScriptGenerator.buildScript(instanceTagOnNode,
-                                                                    getRmUrl(),
-                                                                    rmHostname,
-                                                                    INSTANCE_TAG_NODE_PROPERTY,
-                                                                    additionalProperties,
-                                                                    nodeSource.getName(),
-                                                                    nodeNameOnNode,
-                                                                    numberOfNodesPerInstance);
-
-        readDeletingLock.lock();
-        Set<String> instancesIds = new HashSet<>();
-        try {
-            instancesIds = connectorIaasController.createGCEInstances(getInfrastructureId(),
-                                                                      getInfrastructureId(),
-                                                                      numberOfInstances,
-                                                                      vmUsername,
-                                                                      vmPublicKey,
-                                                                      vmPrivateKey,
-                                                                      scripts,
-                                                                      image,
-                                                                      region,
-                                                                      ram,
-                                                                      cores);
-        } finally {
-            readDeletingLock.unlock();
-        }
-        List<String> nodeNames = new ArrayList<>();
-        for (String instanceId : instancesIds) {
-            String instanceTag = stringAfterLastSlash(instanceId);
-            nodeNames.addAll(RMNodeStarter.getWorkersNodeNames(instanceTag, numberOfNodesPerInstance));
-        }
-        // declare nodes as "deploying"
-        Executors.newCachedThreadPool().submit(() -> {
-            List<String> deployingNodes = addMultipleDeployingNodes(nodeNames,
-                                                                    scripts.toString(),
-                                                                    "Node deployment on Google Compute Engine",
-                                                                    nodeTimeout);
-            logger.info("Deploying nodes: " + deployingNodes);
-        });
+        deployInstancesWithFullNodes(1);
     }
 
     @Override
     public void acquireAllNodes() {
-        acquireNode();
+        deployInstancesWithFullNodes(totalNumberOfInstances);
+    }
+
+    @Override
+    public synchronized void acquireNodes(final int numberOfNodes, final Map<String, ?> nodeConfiguration) {
+        logger.info(String.format("Acquiring %d nodes with the configuration: %s.", numberOfNodes, nodeConfiguration));
+
+        nodeSource.executeInParallel(() -> {
+            if (dynamicAcquireLock.tryLock()) {
+                try {
+                    int nbInstancesToDeploy = calNumberOfInstancesToDeploy(numberOfNodes,
+                                                                           nodeConfiguration,
+                                                                           totalNumberOfInstances,
+                                                                           numberOfNodesPerInstance);
+                    if (nbInstancesToDeploy <= 0) {
+                        logger.info("No need to deploy new instances, acquireNodes skipped.");
+                        return;
+                    }
+                    deployInstancesWithFullNodes(nbInstancesToDeploy);
+                } catch (Exception e) {
+                    logger.error("Error during node acquisition", e);
+                } finally {
+                    dynamicAcquireLock.unlock();
+                }
+            } else {
+                logger.info("Infrastructure is busy, acquireNodes skipped.");
+            }
+        });
+    }
+
+    /**
+     * deploy {@code nbInstancesToDeploy} instances with  {@code numberOfNodesPerInstance} nodes on each instance
+     * @param nbInstancesToDeploy number of instances to deploy
+     */
+    private void deployInstancesWithFullNodes(int nbInstancesToDeploy) {
+        logger.info(String.format("Deploying %d instances with %d nodes on each instance.",
+                                  nbInstancesToDeploy,
+                                  numberOfNodesPerInstance));
+
+        connectorIaasController.waitForConnectorIaasToBeUP();
+
+        createInfrastructureIfNeeded();
+
+        List<String> nodeStartCmds = buildNodeStartScripts(numberOfNodesPerInstance);
+
+        Set<String> instancesIds = createInstanceWithNodesStartCmd(nbInstancesToDeploy, nodeStartCmds);
+
+        declareDeployingNodes(instancesIds, numberOfNodesPerInstance, nodeStartCmds.toString());
+    }
+
+    private void createInfrastructureIfNeeded() {
+        // Create infrastructure if it does not exist
+        if (!isCreatedInfrastructure) {
+            connectorIaasController.createInfrastructure(getInfrastructureId(),
+                                                         gceCredential.clientEmail,
+                                                         gceCredential.privateKey,
+                                                         null,
+                                                         DESTROY_INSTANCES_ON_SHUTDOWN);
+            isCreatedInfrastructure = true;
+        }
+    }
+
+    private List<String> buildNodeStartScripts(int numberOfNodes) {
+        return linuxInitScriptGenerator.buildScript(INSTANCE_TAG_ON_NODE,
+                                                    getRmUrl(),
+                                                    rmHostname,
+                                                    INSTANCE_TAG_NODE_PROPERTY,
+                                                    additionalProperties,
+                                                    nodeSource.getName(),
+                                                    NODE_NAME_ON_NODE,
+                                                    numberOfNodes);
+    }
+
+    private Set<String> createInstanceWithNodesStartCmd(int nbInstances, List<String> initScripts) {
+        readDeletingLock.lock();
+        try {
+            return connectorIaasController.createGCEInstances(getInfrastructureId(),
+                                                              getInfrastructureId(),
+                                                              nbInstances,
+                                                              vmUsername,
+                                                              vmPublicKey,
+                                                              vmPrivateKey,
+                                                              initScripts,
+                                                              image,
+                                                              region,
+                                                              ram,
+                                                              cores);
+        } finally {
+            readDeletingLock.unlock();
+        }
+    }
+
+    private void declareDeployingNodes(Set<String> instancesIds, int nbNodesPerInstance, String nodeStartCmd) {
+        List<String> nodeNames = new ArrayList<>();
+        for (String instanceId : instancesIds) {
+            String instanceTag = stringAfterLastSlash(instanceId);
+            nodeNames.addAll(RMNodeStarter.getWorkersNodeNames(instanceTag, nbNodesPerInstance));
+        }
+        // declare nodes as "deploying"
+        Executors.newCachedThreadPool().submit(() -> {
+            List<String> deployingNodes = addMultipleDeployingNodes(nodeNames,
+                                                                    nodeStartCmd,
+                                                                    "Node deployment on Google Compute Engine",
+                                                                    nodeTimeout);
+            logger.info("Deploying nodes: " + deployingNodes);
+        });
     }
 
     @Override
@@ -353,25 +430,25 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
 
     private boolean existRegisteredNodesOnInstance(String instanceTag) {
         nodesPerInstance = getNodesPerInstancesMap();
-        if (nodesPerInstance.get(instanceTag) != null && !nodesPerInstance.get(instanceTag).isEmpty()) {
-            return true;
-        }
-        return false;
+        return nodesPerInstance.get(instanceTag) != null && !nodesPerInstance.get(instanceTag).isEmpty();
     }
 
     @Override
     public void removeNode(Node node) {
         nodeSource.executeInParallel(() -> {
+            String nodeName = node.getNodeInformation().getName();
+            String instanceId;
             try {
-                String instanceId = getInstanceIdProperty(node);
-                node.getProActiveRuntime().killNode(node.getNodeInformation().getName());
-                unregisterNodeAndRemoveInstanceIfNeeded(instanceId,
-                                                        node.getNodeInformation().getName(),
-                                                        getInfrastructureId(),
-                                                        true);
+                instanceId = getInstanceIdProperty(node);
+            } catch (RMException e) {
+                throw new IllegalStateException(e);
+            }
+            try {
+                node.getProActiveRuntime().killNode(nodeName);
             } catch (Exception e) {
                 logger.warn("Unable to remove the node '" + node.getNodeInformation().getName() + "' with error: " + e);
             }
+            unregisterNodeAndRemoveInstanceIfNeeded(instanceId, nodeName, getInfrastructureId(), true);
         });
     }
 
@@ -428,7 +505,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
             // make modifications to the nodesPerInstance map
             if (nodesPerInstance.get(instanceTag) != null) {
                 nodesPerInstance.get(instanceTag).remove(nodeName);
-                logger.info("Removed node : " + nodeName);
+                logger.info("Removed node: " + nodeName);
                 if (nodesPerInstance.get(instanceTag).isEmpty()) {
                     if (terminateInstanceIfEmpty) {
                         writeDeletingLock.lock();
@@ -440,7 +517,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
                         logger.info("Instance terminated: " + instanceTag);
                     }
                     nodesPerInstance.remove(instanceTag);
-                    logger.info("Removed instance : " + instanceTag);
+                    logger.info("Removed instance: " + instanceTag);
                 }
                 // finally write to the runtime variable map
                 persistedInfraVariables.put(NODES_PER_INSTANCES_KEY, Maps.newHashMap(nodesPerInstance));
@@ -458,11 +535,11 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
      * - parse the GCE instance tag (e.g., gce-afa) from instance id (e.g., https://www.googleapis.com/compute/v1/projects/fifth-totality-235316/zones/us-central1-a/instances/gce-afa)
      * - parse the node name (e.g., instance-node_0) from deploying node url (e.g., deploying://infra/instance-node_0)
      *
-     * @param completeString
+     * @param completeString the complete string to parse
      * @return substring after last slash
      */
     private static String stringAfterLastSlash(String completeString) {
-        return completeString.substring(completeString.lastIndexOf("/") + 1);
+        return completeString.substring(completeString.lastIndexOf('/') + 1);
     }
 
     /**
@@ -472,7 +549,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
      * @return instanceTag (e.g., instance-node)
      */
     private static String parseInstanceTagFromNodeName(String nodeName) {
-        int indexSeparator = nodeName.lastIndexOf("_");
+        int indexSeparator = nodeName.lastIndexOf('_');
         if (indexSeparator == -1) {
             // when nodeName contains no indexSeparator, instanceTag is same as nodeName
             return nodeName;
