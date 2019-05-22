@@ -322,19 +322,23 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
 
         connectorIaasController.waitForConnectorIaasToBeUP();
 
-        createInfrastructureIfNeeded();
+        String infrastructureId = getInfrastructureId();
+
+        createInfrastructureIfNeeded(infrastructureId);
 
         List<String> nodeStartCmds = buildNodeStartScripts(numberOfNodesPerInstance);
 
-        Set<String> instancesIds = createInstanceWithNodesStartCmd(nbInstancesToDeploy, nodeStartCmds);
+        Set<String> instancesIds = createInstanceWithNodesStartCmd(infrastructureId,
+                                                                   nbInstancesToDeploy,
+                                                                   nodeStartCmds);
 
         declareDeployingNodes(instancesIds, numberOfNodesPerInstance, nodeStartCmds.toString());
     }
 
-    private void createInfrastructureIfNeeded() {
+    private void createInfrastructureIfNeeded(String infrastructureId) {
         // Create infrastructure if it does not exist
         if (!isCreatedInfrastructure) {
-            connectorIaasController.createInfrastructure(getInfrastructureId(),
+            connectorIaasController.createInfrastructure(infrastructureId,
                                                          gceCredential.clientEmail,
                                                          gceCredential.privateKey,
                                                          null,
@@ -354,11 +358,12 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
                                                     numberOfNodes);
     }
 
-    private Set<String> createInstanceWithNodesStartCmd(int nbInstances, List<String> initScripts) {
+    private Set<String> createInstanceWithNodesStartCmd(String infrastructureId, int nbInstances,
+            List<String> initScripts) {
         readDeletingLock.lock();
         try {
-            return connectorIaasController.createGCEInstances(getInfrastructureId(),
-                                                              getInfrastructureId(),
+            return connectorIaasController.createGCEInstances(infrastructureId,
+                                                              infrastructureId,
                                                               nbInstances,
                                                               vmUsername,
                                                               vmPublicKey,
@@ -456,12 +461,15 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     public void shutDown() {
         super.shutDown();
         String infrastructureId = getInfrastructureId();
-        logger.info("Deleting infrastructure : " + infrastructureId + " and its underlying instances");
-        // should not delete instances here, because
-        // 1) terminateInfrastructure delete all the instances deployed with the infrastructure credential.
-        // (i.e., if multiple infrastructures use the same credential, it will delete the instances of other infrastructures.)
-        // 2) RMCore has already called removeNode for all the nodes belong to the infrastructure
-        connectorIaasController.terminateInfrastructure(infrastructureId, false);
+        writeDeletingLock.lock();
+        try {
+            logger.info(String.format("Deleting infrastructure (%d) and its instances", infrastructureId));
+            connectorIaasController.terminateInfrastructure(infrastructureId, true);
+            logger.info(String.format("Successfully deleted infrastructure (%d) and its instances.", infrastructureId));
+        } finally {
+            writeDeletingLock.unlock();
+        }
+
     }
 
     @Override
