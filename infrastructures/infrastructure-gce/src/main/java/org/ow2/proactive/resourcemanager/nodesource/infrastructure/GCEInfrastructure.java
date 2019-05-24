@@ -120,7 +120,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     protected String connectorIaasURL = linuxInitScriptGenerator.generateDefaultIaasConnectorURL(generateDefaultRMHostname());
 
     @Configurable(description = "Command used to download the node jar")
-    protected String downloadCommand = linuxInitScriptGenerator.generateDefaultDownloadCommand(rmHostname);
+    protected String nodeJarURL = linuxInitScriptGenerator.generateDefaultNodeJarURL(rmHostname);
 
     @Configurable(description = "(optional) Additional Java command properties (e.g. \"-Dpropertyname=propertyvalue\")")
     protected String additionalProperties = "-Dproactive.useIPaddress=true";
@@ -155,7 +155,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         this.vmPrivateKey = new String((byte[]) parameters[parameterIndex++]);
         this.rmHostname = parameters[parameterIndex++].toString().trim();
         this.connectorIaasURL = parameters[parameterIndex++].toString().trim();
-        this.downloadCommand = parameters[parameterIndex++].toString().trim();
+        this.nodeJarURL = parameters[parameterIndex++].toString().trim();
         this.additionalProperties = parameters[parameterIndex++].toString().trim();
         this.image = parameters[parameterIndex++].toString().trim();
         this.region = parameters[parameterIndex++].toString().trim();
@@ -214,7 +214,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         if (parameters[parameterIndex] == null) {
             throw new IllegalArgumentException("The connector-iaas URL must be specified");
         }
-        // downloadCommand
+        // nodeJarUrl
         parameterIndex++;
         if (parameters[parameterIndex] == null) {
             throw new IllegalArgumentException("The command for downloading the node jar must be specified");
@@ -351,6 +351,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         return linuxInitScriptGenerator.buildScript(INSTANCE_TAG_ON_NODE,
                                                     getRmUrl(),
                                                     rmHostname,
+                                                    nodeJarURL,
                                                     INSTANCE_TAG_NODE_PROPERTY,
                                                     additionalProperties,
                                                     nodeSource.getName(),
