@@ -113,18 +113,6 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     @Configurable(fileBrowser = true, description = "(optional) The private key for accessing the virtual machine")
     protected String vmPrivateKey = null;
 
-    @Configurable(description = "Resource manager hostname or ip address (must be accessible from nodes)")
-    protected String rmHostname = generateDefaultRMHostname();
-
-    @Configurable(description = "Connector-iaas URL")
-    protected String connectorIaasURL = linuxInitScriptGenerator.generateDefaultIaasConnectorURL(generateDefaultRMHostname());
-
-    @Configurable(description = "URL used to download the node jar on the virtual machine")
-    protected String nodeJarURL = linuxInitScriptGenerator.generateDefaultNodeJarURL(rmHostname);
-
-    @Configurable(description = "(optional) Additional Java command properties (e.g. \"-Dpropertyname=propertyvalue\")")
-    protected String additionalProperties = "-Dproactive.useIPaddress=true";
-
     @Configurable(description = "(optional) The image of the virtual machine")
     protected String image = DEFAULT_IMAGE;
 
@@ -136,6 +124,18 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
 
     @Configurable(description = "(optional) The minimum number of CPU cores required for each virtual machine")
     protected int cores = DEFAULT_CORES;
+
+    @Configurable(description = "Resource manager hostname or ip address (must be accessible from nodes)")
+    protected String rmHostname = generateDefaultRMHostname();
+
+    @Configurable(description = "Connector-iaas URL")
+    protected String connectorIaasURL = linuxInitScriptGenerator.generateDefaultIaasConnectorURL(generateDefaultRMHostname());
+
+    @Configurable(description = "URL used to download the node jar on the virtual machine")
+    protected String nodeJarURL = linuxInitScriptGenerator.generateDefaultNodeJarURL(rmHostname);
+
+    @Configurable(description = "(optional) Additional Java command properties (e.g. \"-Dpropertyname=propertyvalue\")")
+    protected String additionalProperties = "-Dproactive.useIPaddress=true";
 
     @Configurable(description = "Node timeout in ms. After this timeout expired, the node is considered to be lost")
     protected int nodeTimeout = 2 * 60 * 1000;// 2 min
@@ -153,14 +153,14 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         this.vmUsername = parameters[parameterIndex++].toString().trim();
         this.vmPublicKey = new String((byte[]) parameters[parameterIndex++]);
         this.vmPrivateKey = new String((byte[]) parameters[parameterIndex++]);
-        this.rmHostname = parameters[parameterIndex++].toString().trim();
-        this.connectorIaasURL = parameters[parameterIndex++].toString().trim();
-        this.nodeJarURL = parameters[parameterIndex++].toString().trim();
-        this.additionalProperties = parameters[parameterIndex++].toString().trim();
         this.image = parameters[parameterIndex++].toString().trim();
         this.region = parameters[parameterIndex++].toString().trim();
         this.ram = parseIntParameter("ram", parameters[parameterIndex++]);
         this.cores = parseIntParameter("cores", parameters[parameterIndex++]);
+        this.rmHostname = parameters[parameterIndex++].toString().trim();
+        this.connectorIaasURL = parameters[parameterIndex++].toString().trim();
+        this.nodeJarURL = parameters[parameterIndex++].toString().trim();
+        this.additionalProperties = parameters[parameterIndex++].toString().trim();
         this.nodeTimeout = parseIntParameter("nodeTimeout", parameters[parameterIndex++]);
 
         connectorIaasController = new ConnectorIaasController(connectorIaasURL, INFRASTRUCTURE_TYPE);
@@ -200,6 +200,26 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         if (parameters[parameterIndex] == null) {
             parameters[parameterIndex] = "";
         }
+        // image
+        parameterIndex++;
+        if (parameters[parameterIndex] == null) {
+            parameters[parameterIndex] = DEFAULT_IMAGE;
+        }
+        // region
+        parameterIndex++;
+        if (parameters[parameterIndex] == null) {
+            parameters[parameterIndex] = DEFAULT_REGION;
+        }
+        // ram
+        parameterIndex++;
+        if (parameters[parameterIndex] == null) {
+            parameters[parameterIndex] = String.valueOf(DEFAULT_RAM);
+        }
+        // cores
+        parameterIndex++;
+        if (parameters[parameterIndex] == null) {
+            parameters[parameterIndex] = String.valueOf(DEFAULT_CORES);
+        }
         // rmHostname
         parameterIndex++;
         if (parameters[parameterIndex] == null) {
@@ -223,26 +243,6 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         parameterIndex++;
         if (parameters[parameterIndex] == null) {
             parameters[parameterIndex] = "";
-        }
-        // image
-        parameterIndex++;
-        if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex] = DEFAULT_IMAGE;
-        }
-        // region
-        parameterIndex++;
-        if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex] = DEFAULT_REGION;
-        }
-        // ram
-        parameterIndex++;
-        if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex] = String.valueOf(DEFAULT_RAM);
-        }
-        // cores
-        parameterIndex++;
-        if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex] = String.valueOf(DEFAULT_CORES);
         }
         // nodeTimeout
         parameterIndex++;

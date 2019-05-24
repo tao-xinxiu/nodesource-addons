@@ -163,14 +163,14 @@ public class GCEInfrastructureTest {
                                     VM_USERNAME,
                                     VM_PUBLIC_KEY_BYTES,
                                     VM_PRIVATE_KEY_BYTES,
-                                    RM_HOSTNAME,
-                                    CONNECTOR_IAAS_URL,
-                                    NODE_JAR_URL,
-                                    ADDITIONAL_PROPERTIES,
                                     IMAGE,
                                     REGION,
                                     RAM,
                                     CORES,
+                                    RM_HOSTNAME,
+                                    CONNECTOR_IAAS_URL,
+                                    NODE_JAR_URL,
+                                    ADDITIONAL_PROPERTIES,
                                     NODE_TIMEOUT);
 
         assertThat(gceInfrastructure.gceCredential.clientEmail, is(CLIENT_EMAIL));
@@ -195,14 +195,14 @@ public class GCEInfrastructureTest {
     public void tesConfigureNotEnoughParameters() {
         gceInfrastructure.configure(NUMBER_INSTANCES,
                                     NUMBER_NODES_PER_INSTANCE,
-                                    RM_HOSTNAME,
-                                    CONNECTOR_IAAS_URL,
-                                    NODE_JAR_URL,
-                                    ADDITIONAL_PROPERTIES,
                                     IMAGE,
                                     REGION,
                                     RAM,
                                     CORES,
+                                    RM_HOSTNAME,
+                                    CONNECTOR_IAAS_URL,
+                                    NODE_JAR_URL,
+                                    ADDITIONAL_PROPERTIES,
                                     NODE_TIMEOUT);
     }
 
@@ -214,14 +214,14 @@ public class GCEInfrastructureTest {
                                     VM_USERNAME,
                                     VM_PUBLIC_KEY_BYTES,
                                     VM_PRIVATE_KEY_BYTES,
-                                    RM_HOSTNAME,
-                                    CONNECTOR_IAAS_URL,
-                                    NODE_JAR_URL,
-                                    ADDITIONAL_PROPERTIES,
                                     IMAGE,
                                     REGION,
                                     RAM,
                                     CORES,
+                                    RM_HOSTNAME,
+                                    CONNECTOR_IAAS_URL,
+                                    NODE_JAR_URL,
+                                    ADDITIONAL_PROPERTIES,
                                     NODE_TIMEOUT);
     }
 
@@ -233,14 +233,14 @@ public class GCEInfrastructureTest {
                                     VM_USERNAME,
                                     VM_PUBLIC_KEY_BYTES,
                                     VM_PRIVATE_KEY_BYTES,
-                                    RM_HOSTNAME,
-                                    CONNECTOR_IAAS_URL,
-                                    NODE_JAR_URL,
-                                    ADDITIONAL_PROPERTIES,
                                     IMAGE,
                                     REGION,
                                     RAM,
                                     CORES,
+                                    RM_HOSTNAME,
+                                    CONNECTOR_IAAS_URL,
+                                    NODE_JAR_URL,
+                                    ADDITIONAL_PROPERTIES,
                                     NODE_TIMEOUT);
         // re-assign needed because gceInfrastructure.configure new the object gceInfrastructure.connectorIaasController
         gceInfrastructure.connectorIaasController = connectorIaasController;
@@ -293,14 +293,14 @@ public class GCEInfrastructureTest {
                                     VM_USERNAME,
                                     VM_PUBLIC_KEY_BYTES,
                                     VM_PRIVATE_KEY_BYTES,
-                                    RM_HOSTNAME,
-                                    CONNECTOR_IAAS_URL,
-                                    NODE_JAR_URL,
-                                    ADDITIONAL_PROPERTIES,
                                     IMAGE,
                                     REGION,
                                     RAM,
                                     CORES,
+                                    RM_HOSTNAME,
+                                    CONNECTOR_IAAS_URL,
+                                    NODE_JAR_URL,
+                                    ADDITIONAL_PROPERTIES,
                                     NODE_TIMEOUT);
         // re-assign needed because gceInfrastructure.configure new the object gceInfrastructure.connectorIaasController
         gceInfrastructure.connectorIaasController = connectorIaasController;
@@ -367,14 +367,14 @@ public class GCEInfrastructureTest {
                                     VM_USERNAME,
                                     VM_PUBLIC_KEY_BYTES,
                                     VM_PRIVATE_KEY_BYTES,
-                                    RM_HOSTNAME,
-                                    CONNECTOR_IAAS_URL,
-                                    NODE_JAR_URL,
-                                    ADDITIONAL_PROPERTIES,
                                     IMAGE,
                                     REGION,
                                     RAM,
                                     CORES,
+                                    RM_HOSTNAME,
+                                    CONNECTOR_IAAS_URL,
+                                    NODE_JAR_URL,
+                                    ADDITIONAL_PROPERTIES,
                                     NODE_TIMEOUT);
         // re-assign needed because gceInfrastructure.configure new the object gceInfrastructure.connectorIaasController
         gceInfrastructure.connectorIaasController = connectorIaasController;
@@ -441,14 +441,14 @@ public class GCEInfrastructureTest {
                                     VM_USERNAME,
                                     VM_PUBLIC_KEY_BYTES,
                                     VM_PRIVATE_KEY_BYTES,
-                                    RM_HOSTNAME,
-                                    CONNECTOR_IAAS_URL,
-                                    NODE_JAR_URL,
-                                    ADDITIONAL_PROPERTIES,
                                     IMAGE,
                                     REGION,
                                     RAM,
                                     CORES,
+                                    RM_HOSTNAME,
+                                    CONNECTOR_IAAS_URL,
+                                    NODE_JAR_URL,
+                                    ADDITIONAL_PROPERTIES,
                                     NODE_TIMEOUT);
         // re-assign needed because gceInfrastructure.configure new the object gceInfrastructure.connectorIaasController
         gceInfrastructure.connectorIaasController = connectorIaasController;
@@ -498,14 +498,14 @@ public class GCEInfrastructureTest {
                                     VM_USERNAME,
                                     VM_PUBLIC_KEY_BYTES,
                                     VM_PRIVATE_KEY_BYTES,
-                                    RM_HOSTNAME,
-                                    CONNECTOR_IAAS_URL,
-                                    NODE_JAR_URL,
-                                    ADDITIONAL_PROPERTIES,
                                     IMAGE,
                                     REGION,
                                     RAM,
                                     CORES,
+                                    RM_HOSTNAME,
+                                    CONNECTOR_IAAS_URL,
+                                    NODE_JAR_URL,
+                                    ADDITIONAL_PROPERTIES,
                                     NODE_TIMEOUT);
         // re-assign needed because gceInfrastructure.configure new the object gceInfrastructure.connectorIaasController
         gceInfrastructure.connectorIaasController = connectorIaasController;
@@ -530,14 +530,14 @@ public class GCEInfrastructureTest {
                                     VM_USERNAME,
                                     VM_PUBLIC_KEY_BYTES,
                                     VM_PRIVATE_KEY_BYTES,
-                                    RM_HOSTNAME,
-                                    CONNECTOR_IAAS_URL,
-                                    NODE_JAR_URL,
-                                    ADDITIONAL_PROPERTIES,
                                     IMAGE,
                                     REGION,
                                     RAM,
                                     CORES,
+                                    RM_HOSTNAME,
+                                    CONNECTOR_IAAS_URL,
+                                    NODE_JAR_URL,
+                                    ADDITIONAL_PROPERTIES,
                                     NODE_TIMEOUT);
         // re-assign needed because gceInfrastructure.configure new the object gceInfrastructure.connectorIaasController
         gceInfrastructure.connectorIaasController = connectorIaasController;
@@ -572,14 +572,14 @@ public class GCEInfrastructureTest {
                                     VM_USERNAME,
                                     VM_PUBLIC_KEY_BYTES,
                                     VM_PRIVATE_KEY_BYTES,
-                                    RM_HOSTNAME,
-                                    CONNECTOR_IAAS_URL,
-                                    NODE_JAR_URL,
-                                    ADDITIONAL_PROPERTIES,
                                     IMAGE,
                                     REGION,
                                     RAM,
                                     CORES,
+                                    RM_HOSTNAME,
+                                    CONNECTOR_IAAS_URL,
+                                    NODE_JAR_URL,
+                                    ADDITIONAL_PROPERTIES,
                                     NODE_TIMEOUT);
         // re-assign needed because gceInfrastructure.configure new the object gceInfrastructure.connectorIaasController
         gceInfrastructure.connectorIaasController = connectorIaasController;
@@ -609,14 +609,14 @@ public class GCEInfrastructureTest {
                                     VM_USERNAME,
                                     VM_PUBLIC_KEY_BYTES,
                                     VM_PRIVATE_KEY_BYTES,
-                                    RM_HOSTNAME,
-                                    CONNECTOR_IAAS_URL,
-                                    NODE_JAR_URL,
-                                    ADDITIONAL_PROPERTIES,
                                     IMAGE,
                                     REGION,
                                     RAM,
                                     CORES,
+                                    RM_HOSTNAME,
+                                    CONNECTOR_IAAS_URL,
+                                    NODE_JAR_URL,
+                                    ADDITIONAL_PROPERTIES,
                                     NODE_TIMEOUT);
         // re-assign needed because gceInfrastructure.configure new the object gceInfrastructure.connectorIaasController
         gceInfrastructure.connectorIaasController = connectorIaasController;
@@ -646,14 +646,14 @@ public class GCEInfrastructureTest {
                                     VM_USERNAME,
                                     VM_PUBLIC_KEY_BYTES,
                                     VM_PRIVATE_KEY_BYTES,
-                                    RM_HOSTNAME,
-                                    CONNECTOR_IAAS_URL,
-                                    NODE_JAR_URL,
-                                    ADDITIONAL_PROPERTIES,
                                     IMAGE,
                                     REGION,
                                     RAM,
                                     CORES,
+                                    RM_HOSTNAME,
+                                    CONNECTOR_IAAS_URL,
+                                    NODE_JAR_URL,
+                                    ADDITIONAL_PROPERTIES,
                                     NODE_TIMEOUT);
         // re-assign needed because gceInfrastructure.configure new the object gceInfrastructure.connectorIaasController
         gceInfrastructure.connectorIaasController = connectorIaasController;
@@ -685,14 +685,14 @@ public class GCEInfrastructureTest {
                                     VM_USERNAME,
                                     VM_PUBLIC_KEY_BYTES,
                                     VM_PRIVATE_KEY_BYTES,
-                                    RM_HOSTNAME,
-                                    CONNECTOR_IAAS_URL,
-                                    NODE_JAR_URL,
-                                    ADDITIONAL_PROPERTIES,
                                     IMAGE,
                                     REGION,
                                     RAM,
                                     CORES,
+                                    RM_HOSTNAME,
+                                    CONNECTOR_IAAS_URL,
+                                    NODE_JAR_URL,
+                                    ADDITIONAL_PROPERTIES,
                                     NODE_TIMEOUT);
         // re-assign needed because gceInfrastructure.configure new the object gceInfrastructure.connectorIaasController
         gceInfrastructure.connectorIaasController = connectorIaasController;
