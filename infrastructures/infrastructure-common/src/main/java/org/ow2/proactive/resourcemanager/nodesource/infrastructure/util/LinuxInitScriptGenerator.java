@@ -43,11 +43,11 @@ public class LinuxInitScriptGenerator {
 
     static {
         try {
-            // If the configuration manager is not loaded, I load it with the NodeSource properties file
+            // load configuration manager with the NodeSource properties file
             nsConfig = NSProperties.loadConfig();
         } catch (ConfigurationException e) {
-            // If something go wring, I switch to hardcoded configuration, and leave.
             logger.error("Exception when loading NodeSource properties", e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -114,25 +114,16 @@ public class LinuxInitScriptGenerator {
     }
 
     public String generateDefaultIaasConnectorURL(String DefaultRMHostname) {
-        if (nsConfig == null) {
-            return null;
-        }
         // I return the requested value while taking into account the configuration parameters
         return nsConfig.getString(NSProperties.DEFAULT_PREFIX_CONNECTOR_IAAS_URL) + DefaultRMHostname +
                nsConfig.getString(NSProperties.DEFAULT_SUFFIX_CONNECTOR_IAAS_URL);
     }
 
     public String generateDefaultDownloadCommand(String rmHostname) {
-        if (nsConfig == null) {
-            return null;
-        }
         return generateNodeDownloadCommand(generateDefaultNodeJarURL(rmHostname));
     }
 
     public String generateDefaultNodeJarURL(String rmHostname) {
-        if (nsConfig == null) {
-            return null;
-        }
         return rmHostname + nsConfig.getString(NSProperties.DEFAULT_SUFFIX_RM_TO_NODEJAR_URL);
     }
 }

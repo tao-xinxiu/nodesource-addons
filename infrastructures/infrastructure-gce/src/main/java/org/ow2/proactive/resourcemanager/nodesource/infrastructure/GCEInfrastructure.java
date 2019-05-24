@@ -234,10 +234,10 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         if (parameters[parameterIndex] == null) {
             throw new IllegalArgumentException("The connector-iaas URL must be specified");
         }
-        // nodeJarUrl
+        // nodeJarURL
         parameterIndex++;
         if (parameters[parameterIndex] == null) {
-            throw new IllegalArgumentException("The url for downloading the node jar must be specified");
+            throw new IllegalArgumentException("The URL for downloading the node jar must be specified");
         }
         // additionalProperties
         parameterIndex++;
@@ -542,7 +542,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
      * Get the sub-string after the last slash in 'completeString'.
      * It is used to :
      * - parse the GCE instance tag (e.g., gce-afa) from instance id (e.g., https://www.googleapis.com/compute/v1/projects/fifth-totality-235316/zones/us-central1-a/instances/gce-afa)
-     * - parse the node name (e.g., instance-node_0) from deploying node url (e.g., deploying://infra/instance-node_0)
+     * - parse the node name (e.g., instance-node_0) from deploying node URL (e.g., deploying://infra/instance-node_0)
      *
      * @param completeString the complete string to parse
      * @return substring after last slash
