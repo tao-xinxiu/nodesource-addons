@@ -119,7 +119,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     @Configurable(description = "Connector-iaas URL")
     protected String connectorIaasURL = linuxInitScriptGenerator.generateDefaultIaasConnectorURL(generateDefaultRMHostname());
 
-    @Configurable(description = "Command used to download the node jar")
+    @Configurable(description = "URL used to download the node jar on the virtual machine")
     protected String nodeJarURL = linuxInitScriptGenerator.generateDefaultNodeJarURL(rmHostname);
 
     @Configurable(description = "(optional) Additional Java command properties (e.g. \"-Dpropertyname=propertyvalue\")")
@@ -217,7 +217,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         // nodeJarUrl
         parameterIndex++;
         if (parameters[parameterIndex] == null) {
-            throw new IllegalArgumentException("The command for downloading the node jar must be specified");
+            throw new IllegalArgumentException("The url for downloading the node jar must be specified");
         }
         // additionalProperties
         parameterIndex++;
@@ -464,9 +464,9 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         String infrastructureId = getInfrastructureId();
         writeDeletingLock.lock();
         try {
-            logger.info(String.format("Deleting infrastructure (%d) and its instances", infrastructureId));
+            logger.info(String.format("Deleting infrastructure (%s) and its instances", infrastructureId));
             connectorIaasController.terminateInfrastructure(infrastructureId, true);
-            logger.info(String.format("Successfully deleted infrastructure (%d) and its instances.", infrastructureId));
+            logger.info(String.format("Successfully deleted infrastructure (%s) and its instances.", infrastructureId));
         } finally {
             writeDeletingLock.unlock();
         }
