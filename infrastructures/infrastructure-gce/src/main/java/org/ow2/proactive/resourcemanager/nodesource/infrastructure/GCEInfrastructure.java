@@ -113,18 +113,6 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     @Configurable(fileBrowser = true, description = "(optional) The private key for accessing the virtual machine")
     protected String vmPrivateKey = null;
 
-    @Configurable(description = "Resource manager hostname or ip address (must be accessible from nodes)")
-    protected String rmHostname = generateDefaultRMHostname();
-
-    @Configurable(description = "Connector-iaas URL")
-    protected String connectorIaasURL = linuxInitScriptGenerator.generateDefaultIaasConnectorURL(generateDefaultRMHostname());
-
-    @Configurable(description = "Command used to download the node jar")
-    protected String downloadCommand = linuxInitScriptGenerator.generateDefaultDownloadCommand(rmHostname);
-
-    @Configurable(description = "(optional) Additional Java command properties (e.g. \"-Dpropertyname=propertyvalue\")")
-    protected String additionalProperties = "-Dproactive.useIPaddress=true";
-
     @Configurable(description = "(optional) The image of the virtual machine")
     protected String image = DEFAULT_IMAGE;
 
@@ -136,6 +124,18 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
 
     @Configurable(description = "(optional) The minimum number of CPU cores required for each virtual machine")
     protected int cores = DEFAULT_CORES;
+
+    @Configurable(description = "Resource manager hostname or ip address (must be accessible from nodes)")
+    protected String rmHostname = generateDefaultRMHostname();
+
+    @Configurable(description = "Connector-iaas URL")
+    protected String connectorIaasURL = linuxInitScriptGenerator.generateDefaultIaasConnectorURL(generateDefaultRMHostname());
+
+    @Configurable(description = "URL used to download the node jar on the virtual machine")
+    protected String nodeJarURL = linuxInitScriptGenerator.generateDefaultNodeJarURL(rmHostname);
+
+    @Configurable(description = "(optional) Additional Java command properties (e.g. \"-Dpropertyname=propertyvalue\")")
+    protected String additionalProperties = "-Dproactive.useIPaddress=true";
 
     @Configurable(description = "Node timeout in ms. After this timeout expired, the node is considered to be lost")
     protected int nodeTimeout = 2 * 60 * 1000;// 2 min
@@ -153,14 +153,14 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         this.vmUsername = parameters[parameterIndex++].toString().trim();
         this.vmPublicKey = new String((byte[]) parameters[parameterIndex++]);
         this.vmPrivateKey = new String((byte[]) parameters[parameterIndex++]);
-        this.rmHostname = parameters[parameterIndex++].toString().trim();
-        this.connectorIaasURL = parameters[parameterIndex++].toString().trim();
-        this.downloadCommand = parameters[parameterIndex++].toString().trim();
-        this.additionalProperties = parameters[parameterIndex++].toString().trim();
         this.image = parameters[parameterIndex++].toString().trim();
         this.region = parameters[parameterIndex++].toString().trim();
         this.ram = parseIntParameter("ram", parameters[parameterIndex++]);
         this.cores = parseIntParameter("cores", parameters[parameterIndex++]);
+        this.rmHostname = parameters[parameterIndex++].toString().trim();
+        this.connectorIaasURL = parameters[parameterIndex++].toString().trim();
+        this.nodeJarURL = parameters[parameterIndex++].toString().trim();
+        this.additionalProperties = parameters[parameterIndex++].toString().trim();
         this.nodeTimeout = parseIntParameter("nodeTimeout", parameters[parameterIndex++]);
 
         connectorIaasController = new ConnectorIaasController(connectorIaasURL, INFRASTRUCTURE_TYPE);
@@ -200,30 +200,6 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         if (parameters[parameterIndex] == null) {
             parameters[parameterIndex] = "";
         }
-        // rmHostname
-        parameterIndex++;
-        if (parameters[parameterIndex] == null) {
-            throw new IllegalArgumentException("The resource manager hostname must be specified");
-        }
-        if (parameters[parameterIndex].toString().contains("/")) {
-            throw new IllegalArgumentException(String.format("Invalid hostname %s (hostname should not contains '/').",
-                                                             parameters[parameterIndex]));
-        }
-        // connectorIaasURL
-        parameterIndex++;
-        if (parameters[parameterIndex] == null) {
-            throw new IllegalArgumentException("The connector-iaas URL must be specified");
-        }
-        // downloadCommand
-        parameterIndex++;
-        if (parameters[parameterIndex] == null) {
-            throw new IllegalArgumentException("The command for downloading the node jar must be specified");
-        }
-        // additionalProperties
-        parameterIndex++;
-        if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex] = "";
-        }
         // image
         parameterIndex++;
         if (parameters[parameterIndex] == null) {
@@ -243,6 +219,30 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         parameterIndex++;
         if (parameters[parameterIndex] == null) {
             parameters[parameterIndex] = String.valueOf(DEFAULT_CORES);
+        }
+        // rmHostname
+        parameterIndex++;
+        if (parameters[parameterIndex] == null) {
+            throw new IllegalArgumentException("The resource manager hostname must be specified");
+        }
+        if (parameters[parameterIndex].toString().contains("/")) {
+            throw new IllegalArgumentException(String.format("Invalid hostname %s (hostname should not contains '/').",
+                                                             parameters[parameterIndex]));
+        }
+        // connectorIaasURL
+        parameterIndex++;
+        if (parameters[parameterIndex] == null) {
+            throw new IllegalArgumentException("The connector-iaas URL must be specified");
+        }
+        // nodeJarURL
+        parameterIndex++;
+        if (parameters[parameterIndex] == null) {
+            throw new IllegalArgumentException("The URL for downloading the node jar must be specified");
+        }
+        // additionalProperties
+        parameterIndex++;
+        if (parameters[parameterIndex] == null) {
+            parameters[parameterIndex] = "";
         }
         // nodeTimeout
         parameterIndex++;
@@ -351,6 +351,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         return linuxInitScriptGenerator.buildScript(INSTANCE_TAG_ON_NODE,
                                                     getRmUrl(),
                                                     rmHostname,
+                                                    nodeJarURL,
                                                     INSTANCE_TAG_NODE_PROPERTY,
                                                     additionalProperties,
                                                     nodeSource.getName(),
@@ -463,9 +464,9 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         String infrastructureId = getInfrastructureId();
         writeDeletingLock.lock();
         try {
-            logger.info(String.format("Deleting infrastructure (%d) and its instances", infrastructureId));
+            logger.info(String.format("Deleting infrastructure (%s) and its instances", infrastructureId));
             connectorIaasController.terminateInfrastructure(infrastructureId, true);
-            logger.info(String.format("Successfully deleted infrastructure (%d) and its instances.", infrastructureId));
+            logger.info(String.format("Successfully deleted infrastructure (%s) and its instances.", infrastructureId));
         } finally {
             writeDeletingLock.unlock();
         }
@@ -541,7 +542,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
      * Get the sub-string after the last slash in 'completeString'.
      * It is used to :
      * - parse the GCE instance tag (e.g., gce-afa) from instance id (e.g., https://www.googleapis.com/compute/v1/projects/fifth-totality-235316/zones/us-central1-a/instances/gce-afa)
-     * - parse the node name (e.g., instance-node_0) from deploying node url (e.g., deploying://infra/instance-node_0)
+     * - parse the node name (e.g., instance-node_0) from deploying node URL (e.g., deploying://infra/instance-node_0)
      *
      * @param completeString the complete string to parse
      * @return substring after last slash
