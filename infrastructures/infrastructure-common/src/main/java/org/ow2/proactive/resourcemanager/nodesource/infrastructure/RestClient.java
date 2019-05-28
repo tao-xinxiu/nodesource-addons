@@ -31,9 +31,18 @@ import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.impl.client.StandardHttpRequestRetryHandler;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+import org.jboss.resteasy.client.jaxrs.ClientHttpEngine;
 import org.jboss.resteasy.client.jaxrs.ResteasyClient;
 import org.jboss.resteasy.client.jaxrs.ResteasyClientBuilder;
 import org.jboss.resteasy.client.jaxrs.ResteasyWebTarget;
+import org.jboss.resteasy.client.jaxrs.engines.ApacheHttpClient4Engine;
+import org.jboss.resteasy.plugins.interceptors.encoding.AcceptEncodingGZIPFilter;
+import org.jboss.resteasy.plugins.interceptors.encoding.GZIPDecodingInterceptor;
+import org.jboss.resteasy.plugins.interceptors.encoding.GZIPEncodingInterceptor;
+import org.jboss.resteasy.spi.ResteasyProviderFactory;
 
 
 public class RestClient {
@@ -43,7 +52,15 @@ public class RestClient {
     private final String connectorIaasURL;
 
     public RestClient(String connectorIaasURL) {
-        this.restEasyClient = new ResteasyClientBuilder().build();
+
+        ClientHttpEngine engine = new ApacheHttpClient4Engine(HttpClientBuilder.create()
+                                                                               .useSystemProperties()
+                                                                               .setRetryHandler(new StandardHttpRequestRetryHandler())
+                                                                               .build());
+
+        ResteasyProviderFactory providerFactory = ResteasyProviderFactory.getInstance();
+        registerGzipEncoding(providerFactory);
+        this.restEasyClient = new ResteasyClientBuilder().providerFactory(providerFactory).httpEngine(engine).build();
         this.connectorIaasURL = connectorIaasURL;
     }
 
@@ -108,6 +125,18 @@ public class RestClient {
                                   .request()
                                   .post(Entity.entity(scriptJson, MediaType.APPLICATION_JSON_TYPE));
         return checkAndGetResponse(response);
+    }
+
+    private void registerGzipEncoding(ResteasyProviderFactory providerFactory) {
+        if (!providerFactory.isRegistered(AcceptEncodingGZIPFilter.class)) {
+            providerFactory.registerProvider(AcceptEncodingGZIPFilter.class);
+        }
+        if (!providerFactory.isRegistered(GZIPDecodingInterceptor.class)) {
+            providerFactory.registerProvider(GZIPDecodingInterceptor.class);
+        }
+        if (!providerFactory.isRegistered(GZIPEncodingInterceptor.class)) {
+            providerFactory.registerProvider(GZIPEncodingInterceptor.class);
+        }
     }
 
     private Response checkResponseIsOK(Response response) {
