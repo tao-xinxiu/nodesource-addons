@@ -46,6 +46,7 @@ import org.ow2.proactive.resourcemanager.nodesource.infrastructure.util.LinuxIni
 import org.python.google.common.collect.Sets;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 
 
 public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
@@ -228,16 +229,20 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
 
     }
 
-    @Override
-    public void acquireNode() {
-
-        connectorIaasController.waitForConnectorIaasToBeUP();
-
+    private void createAwsInfrastructure() {
         connectorIaasController.createInfrastructure(getInfrastructureId(),
                                                      aws_key,
                                                      aws_secret_key,
                                                      null,
                                                      RM_CLOUD_INFRASTRUCTURES_DESTROY_INSTANCES_ON_SHUTDOWN.getValueAsBoolean());
+    }
+
+    @Override
+    public void acquireNode() {
+
+        connectorIaasController.waitForConnectorIaasToBeUP();
+
+        createAwsInfrastructure();
 
         String instanceTag = getInfrastructureId();
         Set<String> instancesIds = Sets.newHashSet();
@@ -317,7 +322,7 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
             });
             // in all cases, we must remove the instance from the free
             // instance map as we tried everything to deploy nodes on it
-            removeFromInstancesWithoutNodesMap(currentInstanceId);
+            //removeFromInstancesWithoutNodesMap(currentInstanceId);
         }
 
     }
@@ -378,10 +383,44 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
             logger.warn(e);
         }
 
+        logger.info("Node name :" + node.getNodeInformation().getName() + " InstanceId :" + instanceId);
+
         unregisterNodeAndRemoveInstanceIfNeeded(instanceId,
                                                 node.getNodeInformation().getName(),
                                                 getInfrastructureId(),
                                                 true);
+    }
+
+    @Override
+    protected void unregisterNodeAndRemoveInstanceIfNeeded(final String instanceTag, final String nodeName,
+            final String infrastructureId, final boolean terminateInstanceIfEmpty) {
+        setPersistedInfraVariable(() -> {
+            // First read from the runtime variables map
+            //noinspection unchecked
+            nodesPerInstance = (Map<String, Set<String>>) persistedInfraVariables.get(NODES_PER_INSTANCES_KEY);
+            // Make modifications to the nodesPerInstance map
+            if (nodesPerInstance.get(instanceTag) != null) {
+                nodesPerInstance.get(instanceTag).remove(nodeName);
+                logger.info("Removed node: " + nodeName);
+                if (nodesPerInstance.get(instanceTag).isEmpty()) {
+                    logger.info("Instance :" + instanceTag + " is empty ");
+                    if (terminateInstanceIfEmpty) {
+                        logger.info("Call terminate instance for: " + instanceTag);
+                        connectorIaasController.terminateInstance(infrastructureId, instanceTag);
+                        logger.info("Instance terminated: " + instanceTag);
+                    }
+                    nodesPerInstance.remove(instanceTag);
+                    logger.info("Removed instance: " + instanceTag);
+                }
+                // Finally write to the runtime variable map
+                decrementNumberOfAcquiredNodesWithLockAndPersist();
+                persistedInfraVariables.put(NODES_PER_INSTANCES_KEY, Maps.newHashMap(nodesPerInstance));
+            } else {
+                logger.error("Cannot remove node " + nodeName + " because instance " + instanceTag +
+                             " is not registered");
+            }
+            return null;
+        });
     }
 
     @Override
@@ -418,7 +457,8 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
     @Override
     protected String getInstanceIdProperty(Node node) throws RMException {
         try {
-            return node.getProperty(INSTANCE_ID_NODE_PROPERTY);
+
+            return node.getProperty(INSTANCE_TAG_NODE_PROPERTY);
         } catch (ProActiveException e) {
             throw new RMException(e);
         }
