@@ -346,7 +346,7 @@ public class AWSEC2InfrastructureTest {
 
         awsec2Infrastructure.connectorIaasController = connectorIaasController;
 
-        when(node.getProperty(AWSEC2Infrastructure.INSTANCE_TAG_NODE_PROPERTY)).thenReturn("123");
+        when(node.getProperty(AWSEC2Infrastructure.INSTANCE_ID_NODE_PROPERTY)).thenReturn("123");
 
         when(node.getNodeInformation()).thenReturn(nodeInformation);
 
@@ -392,7 +392,7 @@ public class AWSEC2InfrastructureTest {
 
         awsec2Infrastructure.connectorIaasController = connectorIaasController;
 
-        when(node.getProperty(AWSEC2Infrastructure.INSTANCE_TAG_NODE_PROPERTY)).thenReturn("123");
+        when(node.getProperty(AWSEC2Infrastructure.INSTANCE_ID_NODE_PROPERTY)).thenReturn("123");
 
         when(node.getNodeInformation()).thenReturn(nodeInformation);
 

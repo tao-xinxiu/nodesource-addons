@@ -55,8 +55,6 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
 
     public static final String INFRASTRUCTURE_TYPE = "aws-ec2";
 
-    public static final String INSTANCE_TAG_NODE_PROPERTY = "instanceTag";
-
     private static final Logger logger = Logger.getLogger(AWSEC2Infrastructure.class);
 
     private final transient LinuxInitScriptGenerator linuxInitScriptGenerator = new LinuxInitScriptGenerator();
@@ -302,7 +300,7 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
             List<String> scripts = linuxInitScriptGenerator.buildScript(currentInstanceId,
                                                                         getRmUrl(),
                                                                         rmHostname,
-                                                                        INSTANCE_TAG_NODE_PROPERTY,
+                                                                        INSTANCE_ID_NODE_PROPERTY,
                                                                         additionalProperties,
                                                                         nodeSource.getName(),
                                                                         null,
@@ -392,31 +390,31 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
     }
 
     @Override
-    protected void unregisterNodeAndRemoveInstanceIfNeeded(final String instanceTag, final String nodeName,
+    protected void unregisterNodeAndRemoveInstanceIfNeeded(final String instanceId, final String nodeName,
             final String infrastructureId, final boolean terminateInstanceIfEmpty) {
         setPersistedInfraVariable(() -> {
             // First read from the runtime variables map
             //noinspection unchecked
             nodesPerInstance = (Map<String, Set<String>>) persistedInfraVariables.get(NODES_PER_INSTANCES_KEY);
             // Make modifications to the nodesPerInstance map
-            if (nodesPerInstance.get(instanceTag) != null) {
-                nodesPerInstance.get(instanceTag).remove(nodeName);
+            if (nodesPerInstance.get(instanceId) != null) {
+                nodesPerInstance.get(instanceId).remove(nodeName);
                 logger.info("Removed node: " + nodeName);
-                if (nodesPerInstance.get(instanceTag).isEmpty()) {
-                    logger.info("Instance :" + instanceTag + " is empty ");
+                if (nodesPerInstance.get(instanceId).isEmpty()) {
+                    logger.info("Instance :" + instanceId + " is empty ");
                     if (terminateInstanceIfEmpty) {
-                        logger.info("Call terminate instance for: " + instanceTag);
-                        connectorIaasController.terminateInstance(infrastructureId, instanceTag);
-                        logger.info("Instance terminated: " + instanceTag);
+                        logger.info("Call terminate instance for: " + instanceId);
+                        connectorIaasController.terminateInstance(infrastructureId, instanceId);
+                        logger.info("Instance terminated: " + instanceId);
                     }
-                    nodesPerInstance.remove(instanceTag);
-                    logger.info("Removed instance: " + instanceTag);
+                    nodesPerInstance.remove(instanceId);
+                    logger.info("Removed instance: " + instanceId);
                 }
                 // Finally write to the runtime variable map
                 decrementNumberOfAcquiredNodesWithLockAndPersist();
                 persistedInfraVariables.put(NODES_PER_INSTANCES_KEY, Maps.newHashMap(nodesPerInstance));
             } else {
-                logger.error("Cannot remove node " + nodeName + " because instance " + instanceTag +
+                logger.error("Cannot remove node " + nodeName + " because instance " + instanceId +
                              " is not registered");
             }
             return null;
@@ -458,7 +456,7 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
     protected String getInstanceIdProperty(Node node) throws RMException {
         try {
 
-            return node.getProperty(INSTANCE_TAG_NODE_PROPERTY);
+            return node.getProperty(INSTANCE_ID_NODE_PROPERTY);
         } catch (ProActiveException e) {
             throw new RMException(e);
         }
