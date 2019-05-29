@@ -46,6 +46,7 @@ import org.ow2.proactive.resourcemanager.nodesource.infrastructure.util.LinuxIni
 import org.python.google.common.collect.Sets;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 
 
 public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
@@ -53,8 +54,6 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
     public static final String INSTANCE_ID_NODE_PROPERTY = "instanceId";
 
     public static final String INFRASTRUCTURE_TYPE = "aws-ec2";
-
-    public static final String INSTANCE_TAG_NODE_PROPERTY = "instanceTag";
 
     private static final Logger logger = Logger.getLogger(AWSEC2Infrastructure.class);
 
@@ -228,16 +227,20 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
 
     }
 
-    @Override
-    public void acquireNode() {
-
-        connectorIaasController.waitForConnectorIaasToBeUP();
-
+    private void createAwsInfrastructure() {
         connectorIaasController.createInfrastructure(getInfrastructureId(),
                                                      aws_key,
                                                      aws_secret_key,
                                                      null,
                                                      RM_CLOUD_INFRASTRUCTURES_DESTROY_INSTANCES_ON_SHUTDOWN.getValueAsBoolean());
+    }
+
+    @Override
+    public void acquireNode() {
+
+        connectorIaasController.waitForConnectorIaasToBeUP();
+
+        createAwsInfrastructure();
 
         String instanceTag = getInfrastructureId();
         Set<String> instancesIds = Sets.newHashSet();
@@ -297,7 +300,7 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
             List<String> scripts = linuxInitScriptGenerator.buildScript(currentInstanceId,
                                                                         getRmUrl(),
                                                                         rmHostname,
-                                                                        INSTANCE_TAG_NODE_PROPERTY,
+                                                                        INSTANCE_ID_NODE_PROPERTY,
                                                                         additionalProperties,
                                                                         nodeSource.getName(),
                                                                         null,
@@ -378,10 +381,44 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
             logger.warn(e);
         }
 
+        logger.info("Node name :" + node.getNodeInformation().getName() + " InstanceId :" + instanceId);
+
         unregisterNodeAndRemoveInstanceIfNeeded(instanceId,
                                                 node.getNodeInformation().getName(),
                                                 getInfrastructureId(),
                                                 true);
+    }
+
+    @Override
+    protected void unregisterNodeAndRemoveInstanceIfNeeded(final String instanceId, final String nodeName,
+            final String infrastructureId, final boolean terminateInstanceIfEmpty) {
+        setPersistedInfraVariable(() -> {
+            // First read from the runtime variables map
+            //noinspection unchecked
+            nodesPerInstance = (Map<String, Set<String>>) persistedInfraVariables.get(NODES_PER_INSTANCES_KEY);
+            // Make modifications to the nodesPerInstance map
+            if (nodesPerInstance.get(instanceId) != null) {
+                nodesPerInstance.get(instanceId).remove(nodeName);
+                logger.info("Removed node: " + nodeName);
+                if (nodesPerInstance.get(instanceId).isEmpty()) {
+                    logger.info("Instance :" + instanceId + " is empty ");
+                    if (terminateInstanceIfEmpty) {
+                        logger.info("Call terminate instance for: " + instanceId);
+                        connectorIaasController.terminateInstance(infrastructureId, instanceId);
+                        logger.info("Instance terminated: " + instanceId);
+                    }
+                    nodesPerInstance.remove(instanceId);
+                    logger.info("Removed instance: " + instanceId);
+                }
+                // Finally write to the runtime variable map
+                decrementNumberOfAcquiredNodesWithLockAndPersist();
+                persistedInfraVariables.put(NODES_PER_INSTANCES_KEY, Maps.newHashMap(nodesPerInstance));
+            } else {
+                logger.error("Cannot remove node " + nodeName + " because instance " + instanceId +
+                             " is not registered");
+            }
+            return null;
+        });
     }
 
     @Override
@@ -418,6 +455,7 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
     @Override
     protected String getInstanceIdProperty(Node node) throws RMException {
         try {
+
             return node.getProperty(INSTANCE_ID_NODE_PROPERTY);
         } catch (ProActiveException e) {
             throw new RMException(e);
