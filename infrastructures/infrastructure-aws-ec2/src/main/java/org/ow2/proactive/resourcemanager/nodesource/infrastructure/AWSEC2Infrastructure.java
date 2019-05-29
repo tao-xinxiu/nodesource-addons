@@ -322,7 +322,7 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
             });
             // in all cases, we must remove the instance from the free
             // instance map as we tried everything to deploy nodes on it
-            //removeFromInstancesWithoutNodesMap(currentInstanceId);
+            removeFromInstancesWithoutNodesMap(currentInstanceId);
         }
 
     }
