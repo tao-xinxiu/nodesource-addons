@@ -324,13 +324,18 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
 
         String infrastructureId = getInfrastructureId();
 
-        createInfrastructureIfNeeded(infrastructureId);
-
         List<String> nodeStartCmds = buildNodeStartScripts(numberOfNodesPerInstance);
 
-        Set<String> instancesIds = createInstanceWithNodesStartCmd(infrastructureId,
-                                                                   nbInstancesToDeploy,
-                                                                   nodeStartCmds);
+        Set<String> instancesIds;
+
+        readDeletingLock.lock();
+        try {
+            createInfrastructureIfNeeded(infrastructureId);
+
+            instancesIds = createInstanceWithNodesStartCmd(infrastructureId, nbInstancesToDeploy, nodeStartCmds);
+        } finally {
+            readDeletingLock.unlock();
+        }
 
         declareDeployingNodes(instancesIds, numberOfNodesPerInstance, nodeStartCmds.toString());
     }
@@ -361,22 +366,18 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
 
     private Set<String> createInstanceWithNodesStartCmd(String infrastructureId, int nbInstances,
             List<String> initScripts) {
-        readDeletingLock.lock();
-        try {
-            return connectorIaasController.createGCEInstances(infrastructureId,
-                                                              infrastructureId,
-                                                              nbInstances,
-                                                              vmUsername,
-                                                              vmPublicKey,
-                                                              vmPrivateKey,
-                                                              initScripts,
-                                                              image,
-                                                              region,
-                                                              ram,
-                                                              cores);
-        } finally {
-            readDeletingLock.unlock();
-        }
+
+        return connectorIaasController.createGCEInstances(infrastructureId,
+                                                          infrastructureId,
+                                                          nbInstances,
+                                                          vmUsername,
+                                                          vmPublicKey,
+                                                          vmPrivateKey,
+                                                          initScripts,
+                                                          image,
+                                                          region,
+                                                          ram,
+                                                          cores);
     }
 
     private void declareDeployingNodes(Set<String> instancesIds, int nbNodesPerInstance, String nodeStartCmd) {
