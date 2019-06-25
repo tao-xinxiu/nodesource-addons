@@ -32,16 +32,18 @@ import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 import java.util.AbstractMap;
+import java.util.ArrayList;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.mockito.Spy;
+import org.mockito.stubbing.Answer;
 import org.objectweb.proactive.core.ProActiveException;
 import org.objectweb.proactive.core.node.Node;
 import org.objectweb.proactive.core.node.NodeInformation;
@@ -56,8 +58,12 @@ public class AWSEC2InfrastructureTest {
 
     private static final byte[] PRIVATE_KEY = new byte[] { 0, 1, 2, 3, 4 };
 
+    private static final int NODE_TIMEOUT = 120000;
+
     private static final boolean DESTROY_INSTANCES_ON_SHUTDOWN = true;
 
+    @InjectMocks
+    @Spy
     private AWSEC2Infrastructure awsec2Infrastructure;
 
     @Mock
@@ -81,7 +87,6 @@ public class AWSEC2InfrastructureTest {
     @Before
     public void init() {
         MockitoAnnotations.initMocks(this);
-        awsec2Infrastructure = new AWSEC2Infrastructure();
         awsec2Infrastructure.setRmDbManager(dbManager);
         awsec2Infrastructure.initializePersistedInfraVariables();
         when(connectorIaasController.createAwsEc2KeyPair(anyString(),
@@ -139,7 +144,8 @@ public class AWSEC2InfrastructureTest {
                                        1,
                                        "0.05",
                                        "default",
-                                       "127.0.0.1");
+                                       "127.0.0.1",
+                                       NODE_TIMEOUT);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -184,11 +190,20 @@ public class AWSEC2InfrastructureTest {
                                        1,
                                        "0.05",
                                        "default",
-                                       "127.0.0.1");
+                                       "127.0.0.1",
+                                       NODE_TIMEOUT);
 
         awsec2Infrastructure.connectorIaasController = connectorIaasController;
         awsec2Infrastructure.nodeSource = nodeSource;
         awsec2Infrastructure.setRmUrl("http://test.activeeon.com");
+        doAnswer((Answer<Object>) invocation -> {
+            ((Runnable) invocation.getArguments()[0]).run();
+            return null;
+        }).when(nodeSource).executeInParallel(any(Runnable.class));
+        doReturn(new ArrayList<>()).when(awsec2Infrastructure).addMultipleDeployingNodes(anyListOf(String.class),
+                                                                                         anyString(),
+                                                                                         anyString(),
+                                                                                         anyLong());
 
         when(connectorIaasController.createInfrastructure("node_source_name",
                                                           "aws_key",
@@ -211,8 +226,6 @@ public class AWSEC2InfrastructureTest {
                                                                                                              "456"));
 
         awsec2Infrastructure.acquireNode();
-
-        Thread.sleep(500);
 
         verify(connectorIaasController, times(1)).waitForConnectorIaasToBeUP();
 
@@ -264,11 +277,20 @@ public class AWSEC2InfrastructureTest {
                                        1,
                                        "0.05",
                                        "default",
-                                       "127.0.0.1");
+                                       "127.0.0.1",
+                                       NODE_TIMEOUT);
 
         awsec2Infrastructure.connectorIaasController = connectorIaasController;
         awsec2Infrastructure.nodeSource = nodeSource;
         awsec2Infrastructure.setRmUrl("http://test.activeeon.com");
+        doAnswer((Answer<Object>) invocation -> {
+            ((Runnable) invocation.getArguments()[0]).run();
+            return null;
+        }).when(nodeSource).executeInParallel(any(Runnable.class));
+        doReturn(new ArrayList<>()).when(awsec2Infrastructure).addMultipleDeployingNodes(anyListOf(String.class),
+                                                                                         anyString(),
+                                                                                         anyString(),
+                                                                                         anyLong());
 
         when(connectorIaasController.createInfrastructure("node_source_name",
                                                           "aws_key",
@@ -291,8 +313,6 @@ public class AWSEC2InfrastructureTest {
                                                                                                              "456"));
 
         awsec2Infrastructure.acquireAllNodes();
-
-        Thread.sleep(500);
 
         verify(connectorIaasController, times(1)).waitForConnectorIaasToBeUP();
 
@@ -344,7 +364,8 @@ public class AWSEC2InfrastructureTest {
                                        1,
                                        "0.05",
                                        "default",
-                                       "127.0.0.1");
+                                       "127.0.0.1",
+                                       NODE_TIMEOUT);
 
         awsec2Infrastructure.connectorIaasController = connectorIaasController;
 
@@ -390,7 +411,8 @@ public class AWSEC2InfrastructureTest {
                                        1,
                                        "0.05",
                                        "default",
-                                       "127.0.0.1");
+                                       "127.0.0.1",
+                                       NODE_TIMEOUT);
 
         awsec2Infrastructure.connectorIaasController = connectorIaasController;
 

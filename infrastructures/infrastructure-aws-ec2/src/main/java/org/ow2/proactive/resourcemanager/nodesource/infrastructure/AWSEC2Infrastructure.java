@@ -29,11 +29,10 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.util.AbstractMap.SimpleImmutableEntry;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import org.apache.log4j.Logger;
 import org.objectweb.proactive.core.ProActiveException;
@@ -41,6 +40,7 @@ import org.objectweb.proactive.core.node.Node;
 import org.ow2.proactive.resourcemanager.exception.RMException;
 import org.ow2.proactive.resourcemanager.nodesource.common.Configurable;
 import org.ow2.proactive.resourcemanager.nodesource.infrastructure.util.LinuxInitScriptGenerator;
+import org.ow2.proactive.resourcemanager.utils.RMNodeStarter;
 import org.python.google.common.collect.Sets;
 
 import com.google.common.collect.Maps;
@@ -52,9 +52,11 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
 
     public static final String INFRASTRUCTURE_TYPE = "aws-ec2";
 
-    private static final int NUMBER_OF_PARAMETERS = 17;
+    private static final int NUMBER_OF_PARAMETERS = 18;
 
     private static final boolean DESTROY_INSTANCES_ON_SHUTDOWN = true;
+
+    private static final String INSTANCE_ID_REGION_SEPARATOR = "/";
 
     private static final Logger logger = Logger.getLogger(AWSEC2Infrastructure.class);
 
@@ -111,17 +113,18 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
     @Configurable(description = "Subnet and VPC")
     protected String subnetId = null;
 
+    @Configurable(description = "Node timeout in ms. After this timeout expired, the node is considered to be lost")
+    protected int nodeTimeout = 5 * 60 * 1000;// 5 min
+
     /**
      * Key to retrieve the key pair used to deploy the infrastructure
      */
     private static final String KEY_PAIR_KEY = "keyPair";
 
-    private ExecutorService instanceScriptExecutor;
-
     @Override
     public void configure(Object... parameters) {
 
-        logger.info("Validating parameters : " + parameters);
+        logger.info("Validating parameters : " + Arrays.toString(parameters));
         validate(parameters);
 
         int parameterIndex = 0;
@@ -141,12 +144,10 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
         this.cores = Integer.parseInt(parameters[parameterIndex++].toString().trim());
         this.spotPrice = parameters[parameterIndex++].toString().trim();
         this.securityGroupNames = parameters[parameterIndex++].toString().trim();
-        this.subnetId = parameters[parameterIndex].toString().trim();
+        this.subnetId = parameters[parameterIndex++].toString().trim();
+        this.nodeTimeout = Integer.parseInt(parameters[parameterIndex++].toString().trim());
 
         connectorIaasController = new ConnectorIaasController(connectorIaasURL, INFRASTRUCTURE_TYPE);
-        instanceScriptExecutor = Executors.newFixedThreadPool(Math.min(numberOfInstances,
-                                                                       Runtime.getRuntime().availableProcessors() - 1));
-
     }
 
     private void validate(Object[] parameters) {
@@ -238,6 +239,11 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
         if (parameters[parameterIndex] == null) {
             parameters[parameterIndex] = "";
         }
+        parameterIndex++;
+        // nodeTimeout
+        if (parameters[parameterIndex] == null) {
+            throw new IllegalArgumentException("The node timeout must be specified");
+        }
     }
 
     private void createAwsInfrastructure() {
@@ -309,33 +315,50 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
 
         // execute script on instances to deploy or redeploy nodes on them
         for (String currentInstanceId : instancesIds) {
+            deployNodesOnInstance(currentInstanceId, existPersistedInstanceIds);
 
-            List<String> scripts = linuxInitScriptGenerator.buildScript(currentInstanceId,
-                                                                        getRmUrl(),
-                                                                        rmHostname,
-                                                                        INSTANCE_ID_NODE_PROPERTY,
-                                                                        additionalProperties,
-                                                                        nodeSource.getName(),
-                                                                        null,
-                                                                        numberOfNodesPerInstance);
-
-            boolean currentExistPersistedInstancesIds = existPersistedInstanceIds;
-            instanceScriptExecutor.submit(() -> {
-                try {
-                    connectorIaasController.executeScriptWithKeyAuthentication(getInfrastructureId(),
-                                                                               currentInstanceId,
-                                                                               scripts,
-                                                                               vmUsername,
-                                                                               getPersistedKeyPairInfo().getValue());
-                } catch (ScriptNotExecutedException e) {
-                    handleScriptNotExecutedException(currentExistPersistedInstancesIds, currentInstanceId, e);
-                }
-            });
             // in all cases, we must remove the instance from the free
             // instance map as we tried everything to deploy nodes on it
             removeFromInstancesWithoutNodesMap(currentInstanceId);
         }
 
+    }
+
+    private void deployNodesOnInstance(String instancesId, boolean existPersistedInstanceIds) {
+        String nodeName;
+        // use the instance id without region as the node name
+        if (instancesId.contains(INSTANCE_ID_REGION_SEPARATOR)) {
+            nodeName = instancesId.split(INSTANCE_ID_REGION_SEPARATOR)[1];
+        } else {
+            nodeName = instancesId;
+        }
+
+        List<String> scripts = linuxInitScriptGenerator.buildScript(instancesId,
+                                                                    getRmUrl(),
+                                                                    rmHostname,
+                                                                    INSTANCE_ID_NODE_PROPERTY,
+                                                                    additionalProperties,
+                                                                    nodeSource.getName(),
+                                                                    nodeName,
+                                                                    numberOfNodesPerInstance);
+
+        nodeSource.executeInParallel(() -> {
+            // declare nodes as "deploying" state to the RM
+            List<String> nodeNames = RMNodeStarter.getWorkersNodeNames(nodeName, numberOfNodesPerInstance);
+            addMultipleDeployingNodes(nodeNames, scripts.toString(), "Nodes deployment on AWS EC2", nodeTimeout);
+            logger.info("Deploying nodes: " + nodeNames);
+
+            // run node.jar on the instance with the specified VM credentials
+            try {
+                connectorIaasController.executeScriptWithKeyAuthentication(getInfrastructureId(),
+                                                                           instancesId,
+                                                                           scripts,
+                                                                           vmUsername,
+                                                                           getPersistedKeyPairInfo().getValue());
+            } catch (ScriptNotExecutedException e) {
+                handleScriptNotExecutedException(existPersistedInstanceIds, instancesId, e);
+            }
+        });
     }
 
     private String createOrUseKeyPair(String infrastructureId) {
