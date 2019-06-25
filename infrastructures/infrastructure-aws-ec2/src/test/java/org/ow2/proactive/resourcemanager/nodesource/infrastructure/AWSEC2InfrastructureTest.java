@@ -56,6 +56,8 @@ public class AWSEC2InfrastructureTest {
 
     private static final byte[] PRIVATE_KEY = new byte[] { 0, 1, 2, 3, 4 };
 
+    private static final boolean DESTROY_INSTANCES_ON_SHUTDOWN = true;
+
     private AWSEC2Infrastructure awsec2Infrastructure;
 
     @Mock
@@ -192,7 +194,7 @@ public class AWSEC2InfrastructureTest {
                                                           "aws_key",
                                                           "aws_secret_key",
                                                           null,
-                                                          true)).thenReturn("node_source_name");
+                                                          DESTROY_INSTANCES_ON_SHUTDOWN)).thenReturn("node_source_name");
 
         when(connectorIaasController.createAwsEc2InstancesWithOptions("node_source_name",
                                                                       "node_source_name",
@@ -218,7 +220,7 @@ public class AWSEC2InfrastructureTest {
                                                              "aws_key",
                                                              "aws_secret_key",
                                                              null,
-                                                             false);
+                                                             DESTROY_INSTANCES_ON_SHUTDOWN);
 
         verify(connectorIaasController).createAwsEc2InstancesWithOptions("node_source_name",
                                                                          "node_source_name",
@@ -272,7 +274,7 @@ public class AWSEC2InfrastructureTest {
                                                           "aws_key",
                                                           "aws_secret_key",
                                                           null,
-                                                          true)).thenReturn("node_source_name");
+                                                          DESTROY_INSTANCES_ON_SHUTDOWN)).thenReturn("node_source_name");
 
         when(connectorIaasController.createAwsEc2InstancesWithOptions("node_source_name",
                                                                       "node_source_name",
@@ -298,7 +300,7 @@ public class AWSEC2InfrastructureTest {
                                                              "aws_key",
                                                              "aws_secret_key",
                                                              null,
-                                                             false);
+                                                             DESTROY_INSTANCES_ON_SHUTDOWN);
 
         verify(connectorIaasController).createAwsEc2InstancesWithOptions("node_source_name",
                                                                          "node_source_name",

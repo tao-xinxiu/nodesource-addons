@@ -25,8 +25,6 @@
  */
 package org.ow2.proactive.resourcemanager.nodesource.infrastructure;
 
-import static org.ow2.proactive.resourcemanager.core.properties.PAResourceManagerProperties.RM_CLOUD_INFRASTRUCTURES_DESTROY_INSTANCES_ON_SHUTDOWN;
-
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
@@ -45,7 +43,6 @@ import org.ow2.proactive.resourcemanager.nodesource.common.Configurable;
 import org.ow2.proactive.resourcemanager.nodesource.infrastructure.util.LinuxInitScriptGenerator;
 import org.python.google.common.collect.Sets;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
 
@@ -54,6 +51,10 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
     public static final String INSTANCE_ID_NODE_PROPERTY = "instanceId";
 
     public static final String INFRASTRUCTURE_TYPE = "aws-ec2";
+
+    private static final int NUMBER_OF_PARAMETERS = 17;
+
+    private static final boolean DESTROY_INSTANCES_ON_SHUTDOWN = true;
 
     private static final Logger logger = Logger.getLogger(AWSEC2Infrastructure.class);
 
@@ -149,82 +150,94 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
     }
 
     private void validate(Object[] parameters) {
-        int parameterIndex = 0;
-        if (parameters == null || parameters.length < 14) {
+        if (parameters == null || parameters.length < NUMBER_OF_PARAMETERS) {
             throw new IllegalArgumentException("Invalid parameters for EC2Infrastructure creation");
         }
-
-        if (parameters[parameterIndex++] == null) {
+        int parameterIndex = 0;
+        // aws_key
+        if (parameters[parameterIndex] == null) {
             throw new IllegalArgumentException("EC2 key must be specified");
         }
-
-        if (parameters[parameterIndex++] == null) {
+        parameterIndex++;
+        // aws_secret_key
+        if (parameters[parameterIndex] == null) {
             throw new IllegalArgumentException("EC2 secret key  must be specified");
         }
-
-        if (parameters[parameterIndex++] == null) {
+        parameterIndex++;
+        // rmHostname
+        if (parameters[parameterIndex] == null) {
             throw new IllegalArgumentException("The Resource manager hostname must be specified");
         }
-
-        if (parameters[parameterIndex++] == null) {
+        parameterIndex++;
+        // connectorIaasURL
+        if (parameters[parameterIndex] == null) {
             throw new IllegalArgumentException("The connector-iaas URL must be specified");
         }
-
-        if (parameters[parameterIndex++] == null) {
+        parameterIndex++;
+        // image
+        if (parameters[parameterIndex] == null) {
             throw new IllegalArgumentException("The image id must be specified");
         }
-
-        // VM username
-        if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = "";
-        }
-
-        // key pair name
-        if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = "";
-        }
-
-        // private key file
-        if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = "";
-        }
-
-        if (parameters[parameterIndex++] == null) {
-            throw new IllegalArgumentException("The number of instances to create must be specified");
-        }
-
-        if (parameters[parameterIndex++] == null) {
-            throw new IllegalArgumentException("The number of nodes per instance to deploy must be specified");
-        }
-
-        if (parameters[parameterIndex++] == null) {
-            throw new IllegalArgumentException("The download node.jar command must be specified");
-        }
-
-        if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = "";
-        }
-
-        if (parameters[parameterIndex++] == null) {
-            throw new IllegalArgumentException("The amount of minimum RAM required must be specified");
-        }
-
-        if (parameters[parameterIndex++] == null) {
-            throw new IllegalArgumentException("The minimum number of cores required must be specified");
-        }
-
-        if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = "";
-        }
-
-        if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex++] = "";
-        }
-
+        parameterIndex++;
+        // vmUsername
         if (parameters[parameterIndex] == null) {
             parameters[parameterIndex] = "";
         }
-
+        parameterIndex++;
+        // vmKeyPairName
+        if (parameters[parameterIndex] == null) {
+            parameters[parameterIndex] = "";
+        }
+        parameterIndex++;
+        // vmPrivateKey
+        if (parameters[parameterIndex] == null) {
+            parameters[parameterIndex] = "";
+        }
+        parameterIndex++;
+        // numberOfInstances
+        if (parameters[parameterIndex] == null) {
+            throw new IllegalArgumentException("The number of instances to create must be specified");
+        }
+        parameterIndex++;
+        // numberOfNodesPerInstance
+        if (parameters[parameterIndex] == null) {
+            throw new IllegalArgumentException("The number of nodes per instance to deploy must be specified");
+        }
+        parameterIndex++;
+        // downloadCommand
+        if (parameters[parameterIndex] == null) {
+            throw new IllegalArgumentException("The download node.jar command must be specified");
+        }
+        parameterIndex++;
+        // additionalProperties
+        if (parameters[parameterIndex] == null) {
+            parameters[parameterIndex] = "";
+        }
+        parameterIndex++;
+        // ram
+        if (parameters[parameterIndex] == null) {
+            throw new IllegalArgumentException("The amount of minimum RAM required must be specified");
+        }
+        parameterIndex++;
+        // cores
+        if (parameters[parameterIndex] == null) {
+            throw new IllegalArgumentException("The minimum number of cores required must be specified");
+        }
+        parameterIndex++;
+        // spotPrice
+        if (parameters[parameterIndex] == null) {
+            parameters[parameterIndex] = "";
+        }
+        parameterIndex++;
+        // securityGroupNames
+        if (parameters[parameterIndex] == null) {
+            parameters[parameterIndex] = "";
+        }
+        parameterIndex++;
+        // subnetId
+        if (parameters[parameterIndex] == null) {
+            parameters[parameterIndex] = "";
+        }
     }
 
     private void createAwsInfrastructure() {
@@ -232,7 +245,7 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
                                                      aws_key,
                                                      aws_secret_key,
                                                      null,
-                                                     RM_CLOUD_INFRASTRUCTURES_DESTROY_INSTANCES_ON_SHUTDOWN.getValueAsBoolean());
+                                                     DESTROY_INSTANCES_ON_SHUTDOWN);
     }
 
     @Override
