@@ -60,7 +60,7 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
 
     private static final Logger logger = Logger.getLogger(AWSEC2Infrastructure.class);
 
-    private final transient LinuxInitScriptGenerator linuxInitScriptGenerator = new LinuxInitScriptGenerator();
+    private static final LinuxInitScriptGenerator linuxInitScriptGenerator = new LinuxInitScriptGenerator();
 
     @Configurable(description = "The AWS_AKEY")
     protected String aws_key = null;
@@ -93,7 +93,7 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
     protected int numberOfNodesPerInstance = 1;
 
     @Configurable(description = "Command used to download the worker jar")
-    protected String downloadCommand = linuxInitScriptGenerator.generateDefaultDownloadCommand(rmHostname);
+    protected String downloadCommand = LinuxInitScriptGenerator.generateDefaultDownloadCommand(rmHostname);
 
     @Configurable(description = "Additional Java command properties (e.g. \"-Dpropertyname=propertyvalue\")")
     protected String additionalProperties = "";
@@ -324,39 +324,38 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
 
     }
 
-    private void deployNodesOnInstance(String instancesId, boolean existPersistedInstanceIds) {
-        String nodeName;
-        // use the instance id without region as the node name
-        if (instancesId.contains(INSTANCE_ID_REGION_SEPARATOR)) {
-            nodeName = instancesId.split(INSTANCE_ID_REGION_SEPARATOR)[1];
-        } else {
-            nodeName = instancesId;
-        }
-
-        List<String> scripts = linuxInitScriptGenerator.buildScript(instancesId,
-                                                                    getRmUrl(),
-                                                                    rmHostname,
-                                                                    INSTANCE_ID_NODE_PROPERTY,
-                                                                    additionalProperties,
-                                                                    nodeSource.getName(),
-                                                                    nodeName,
-                                                                    numberOfNodesPerInstance);
-
+    private void deployNodesOnInstance(final String instanceId, final boolean existPersistedInstanceIds) {
         nodeSource.executeInParallel(() -> {
+            String nodeName;
+            // use the instance id without region as the node name
+            if (instanceId.contains(INSTANCE_ID_REGION_SEPARATOR)) {
+                nodeName = instanceId.split(INSTANCE_ID_REGION_SEPARATOR)[1];
+            } else {
+                nodeName = instanceId;
+            }
+
+            List<String> scripts = linuxInitScriptGenerator.buildScript(instanceId,
+                                                                        getRmUrl(),
+                                                                        rmHostname,
+                                                                        INSTANCE_ID_NODE_PROPERTY,
+                                                                        additionalProperties,
+                                                                        nodeSource.getName(),
+                                                                        nodeName,
+                                                                        numberOfNodesPerInstance);
+
             // declare nodes as "deploying" state to the RM
             List<String> nodeNames = RMNodeStarter.getWorkersNodeNames(nodeName, numberOfNodesPerInstance);
             addMultipleDeployingNodes(nodeNames, scripts.toString(), "Nodes deployment on AWS EC2", nodeTimeout);
             logger.info("Deploying nodes: " + nodeNames);
-
             // run node.jar on the instance with the specified VM credentials
             try {
                 connectorIaasController.executeScriptWithKeyAuthentication(getInfrastructureId(),
-                                                                           instancesId,
+                                                                           instanceId,
                                                                            scripts,
                                                                            vmUsername,
                                                                            getPersistedKeyPairInfo().getValue());
             } catch (ScriptNotExecutedException e) {
-                handleScriptNotExecutedException(existPersistedInstanceIds, instancesId, e);
+                handleScriptNotExecutedException(existPersistedInstanceIds, instanceId, e);
             }
         });
     }
