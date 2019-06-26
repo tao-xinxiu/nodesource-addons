@@ -33,6 +33,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.apache.log4j.Logger;
 import org.objectweb.proactive.core.ProActiveException;
@@ -42,7 +44,6 @@ import org.ow2.proactive.resourcemanager.nodesource.common.Configurable;
 import org.ow2.proactive.resourcemanager.nodesource.infrastructure.util.LinuxInitScriptGenerator;
 import org.ow2.proactive.resourcemanager.rmnode.RMDeployingNode;
 import org.ow2.proactive.resourcemanager.utils.RMNodeStarter;
-import org.python.google.common.collect.Sets;
 
 import com.google.common.collect.Maps;
 
@@ -69,6 +70,11 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
     private static final Logger logger = Logger.getLogger(AWSEC2Infrastructure.class);
 
     private static final LinuxInitScriptGenerator linuxInitScriptGenerator = new LinuxInitScriptGenerator();
+
+    // Lock for acquireNodes (dynamic policy)
+    private final transient Lock dynamicAcquireLock = new ReentrantLock();
+
+    private boolean isCreatedInfrastructure = false;
 
     @Configurable(description = "The AWS_AKEY")
     protected String aws_key = null;
@@ -254,58 +260,63 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
         }
     }
 
-    private void createAwsInfrastructure() {
-        connectorIaasController.createInfrastructure(getInfrastructureId(),
-                                                     aws_key,
-                                                     aws_secret_key,
-                                                     null,
-                                                     DESTROY_INSTANCES_ON_SHUTDOWN);
+    @Override
+    public void acquireAllNodes() {
+        deployInstancesWithNodes(numberOfInstances, true);
     }
 
     @Override
     public void acquireNode() {
+        deployInstancesWithNodes(1, true);
+    }
 
+    @Override
+    public synchronized void acquireNodes(final int numberOfNodes, final Map<String, ?> nodeConfiguration) {
+        logger.info(String.format("Acquiring %d nodes with the configuration: %s.", numberOfNodes, nodeConfiguration));
+
+        nodeSource.executeInParallel(() -> {
+            if (dynamicAcquireLock.tryLock()) {
+                try {
+                    int nbInstancesToDeploy = calNumberOfInstancesToDeploy(numberOfNodes,
+                                                                           nodeConfiguration,
+                                                                           numberOfInstances,
+                                                                           numberOfNodesPerInstance);
+                    if (nbInstancesToDeploy <= 0) {
+                        logger.info("No need to deploy new instances, acquireNodes skipped.");
+                        return;
+                    }
+                    deployInstancesWithNodes(nbInstancesToDeploy, false);
+                } catch (Exception e) {
+                    logger.error("Error during node acquisition", e);
+                } finally {
+                    dynamicAcquireLock.unlock();
+                }
+            } else {
+                logger.info("Infrastructure is busy, acquireNodes skipped.");
+            }
+        });
+    }
+
+    private void deployInstancesWithNodes(int nbInstancesToDeploy, boolean reuseCreatedInstances) {
         connectorIaasController.waitForConnectorIaasToBeUP();
 
-        createAwsInfrastructure();
+        createAwsInfrastructureIfNeeded();
 
-        String instanceTag = getInfrastructureId();
-        Set<String> instancesIds = Sets.newHashSet();
+        String infrastructureId = getInfrastructureId();
+        Set<String> instancesIds;
         boolean existPersistedInstanceIds = false;
 
-        // we check a persisted flag that says whether this infrastructure has
-        // already been deployed
-        if (expectInstancesAlreadyCreated(false, true)) {
+        // we create new instances in two cases:
+        // 1) we don't want to reuse the created instances (e.g., for dynamic policy)
+        // 2) we reuse created instances, but there aren't any.
+        // For the second case, we check a persisted flag that says whether this infrastructure has already been deployed.
+        if (!reuseCreatedInstances || expectInstancesAlreadyCreated(false, true)) {
 
             // by default, the key pair that is used to deploy the instances has
             // the name of the node source
-            String keyPairName = createOrUseKeyPair(getInfrastructureId());
+            String keyPairName = createOrUseKeyPair(infrastructureId, nbInstancesToDeploy);
 
-            // create instances
-            if (spotPrice.isEmpty() && securityGroupNames.isEmpty() && subnetId.isEmpty()) {
-                instancesIds = connectorIaasController.createAwsEc2Instances(getInfrastructureId(),
-                                                                             instanceTag,
-                                                                             image,
-                                                                             numberOfInstances,
-                                                                             cores,
-                                                                             ram,
-                                                                             vmUsername,
-                                                                             keyPairName);
-            } else {
-                instancesIds = connectorIaasController.createAwsEc2InstancesWithOptions(getInfrastructureId(),
-                                                                                        instanceTag,
-                                                                                        image,
-                                                                                        numberOfInstances,
-                                                                                        cores,
-                                                                                        ram,
-                                                                                        spotPrice,
-                                                                                        securityGroupNames,
-                                                                                        subnetId,
-                                                                                        null,
-                                                                                        vmUsername,
-                                                                                        keyPairName);
-            }
-            logger.info("Instances ids created: " + instancesIds);
+            instancesIds = createInstances(infrastructureId, keyPairName, nbInstancesToDeploy);
 
         } else {
 
@@ -315,8 +326,7 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
             // nodes are down. Indeed if they are all removed on purpose, the
             // instance should be shut down). Note that in this case, if the
             // free instances map is empty, no script will be run at all.
-            Map<String, Integer> freeInstancesMap = getInstancesWithoutNodesMapCopy();
-            instancesIds = freeInstancesMap.keySet();
+            instancesIds = getInstancesWithoutNodesMapCopy().keySet();
             logger.info("Instances ids previously saved which require script re-execution: " + instancesIds);
             existPersistedInstanceIds = true;
         }
@@ -329,7 +339,45 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
             // instance map as we tried everything to deploy nodes on it
             removeFromInstancesWithoutNodesMap(currentInstanceId);
         }
+    }
 
+    private void createAwsInfrastructureIfNeeded() {
+        // Create infrastructure if it does not exist
+        if (!isCreatedInfrastructure) {
+            connectorIaasController.createInfrastructure(getInfrastructureId(),
+                                                         aws_key,
+                                                         aws_secret_key,
+                                                         null,
+                                                         DESTROY_INSTANCES_ON_SHUTDOWN);
+            isCreatedInfrastructure = true;
+        }
+    }
+
+    private Set<String> createInstances(String infrastructureId, String keyPairName, int nbInstances) {
+        // create instances
+        if (spotPrice.isEmpty() && securityGroupNames.isEmpty() && subnetId.isEmpty()) {
+            return connectorIaasController.createAwsEc2Instances(infrastructureId,
+                                                                 infrastructureId,
+                                                                 image,
+                                                                 nbInstances,
+                                                                 cores,
+                                                                 ram,
+                                                                 vmUsername,
+                                                                 keyPairName);
+        } else {
+            return connectorIaasController.createAwsEc2InstancesWithOptions(infrastructureId,
+                                                                            infrastructureId,
+                                                                            image,
+                                                                            nbInstances,
+                                                                            cores,
+                                                                            ram,
+                                                                            spotPrice,
+                                                                            securityGroupNames,
+                                                                            subnetId,
+                                                                            null,
+                                                                            vmUsername,
+                                                                            keyPairName);
+        }
     }
 
     private void deployNodesOnInstance(final String instanceId, final boolean existPersistedInstanceIds) {
@@ -366,7 +414,7 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
         });
     }
 
-    private String createOrUseKeyPair(String infrastructureId) {
+    private String createOrUseKeyPair(String infrastructureId, int nbInstances) {
         SimpleImmutableEntry<String, String> keyPairInfo;
         if (vmPrivateKey.length == 0 || vmKeyPairName.isEmpty()) {
             // create a key pair in AWS
@@ -375,7 +423,7 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
                 keyPairInfo = connectorIaasController.createAwsEc2KeyPair(infrastructureId,
                                                                           infrastructureId,
                                                                           image,
-                                                                          numberOfInstances,
+                                                                          nbInstances,
                                                                           cores,
                                                                           ram);
             } catch (Exception e) {
@@ -403,11 +451,6 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
             throw new IllegalStateException("Key pair cannot be created in AWS and there is no persisted private key. Will not deploy infrastructure " +
                                             getInfrastructureId());
         }
-    }
-
-    @Override
-    public void acquireAllNodes() {
-        acquireNode();
     }
 
     @Override

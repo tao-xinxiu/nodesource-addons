@@ -214,7 +214,7 @@ public class AWSEC2InfrastructureTest {
         when(connectorIaasController.createAwsEc2InstancesWithOptions("node_source_name",
                                                                       "node_source_name",
                                                                       "aws-image",
-                                                                      2,
+                                                                      1,
                                                                       1,
                                                                       512,
                                                                       "0.05",
@@ -222,8 +222,7 @@ public class AWSEC2InfrastructureTest {
                                                                       "127.0.0.1",
                                                                       null,
                                                                       "admin",
-                                                                      "keyname")).thenReturn(Sets.newHashSet("123",
-                                                                                                             "456"));
+                                                                      "keyname")).thenReturn(Sets.newHashSet("123"));
 
         awsec2Infrastructure.acquireNode();
 
@@ -238,7 +237,7 @@ public class AWSEC2InfrastructureTest {
         verify(connectorIaasController).createAwsEc2InstancesWithOptions("node_source_name",
                                                                          "node_source_name",
                                                                          "aws-image",
-                                                                         2,
+                                                                         1,
                                                                          1,
                                                                          512,
                                                                          "0.05",
@@ -248,7 +247,7 @@ public class AWSEC2InfrastructureTest {
                                                                          "admin",
                                                                          "keyname");
 
-        verify(connectorIaasController, times(2)).executeScriptWithKeyAuthentication(anyString(),
+        verify(connectorIaasController, times(1)).executeScriptWithKeyAuthentication(anyString(),
                                                                                      anyString(),
                                                                                      anyList(),
                                                                                      anyString(),
