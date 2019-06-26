@@ -520,6 +520,15 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
         return "Handles nodes from the Amazon Elastic Compute Cloud Service.";
     }
 
+    @Override
+    public void shutDown() {
+        super.shutDown();
+        String infrastructureId = getInfrastructureId();
+        logger.info(String.format("Deleting infrastructure (%s) and its instances", infrastructureId));
+        connectorIaasController.terminateInfrastructure(infrastructureId, true);
+        logger.info(String.format("Successfully deleted infrastructure (%s) and its instances.", infrastructureId));
+    }
+
     /**
      * {@inheritDoc}
      */
