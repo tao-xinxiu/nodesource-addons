@@ -40,6 +40,7 @@ import org.objectweb.proactive.core.node.Node;
 import org.ow2.proactive.resourcemanager.exception.RMException;
 import org.ow2.proactive.resourcemanager.nodesource.common.Configurable;
 import org.ow2.proactive.resourcemanager.nodesource.infrastructure.util.LinuxInitScriptGenerator;
+import org.ow2.proactive.resourcemanager.rmnode.RMDeployingNode;
 import org.ow2.proactive.resourcemanager.utils.RMNodeStarter;
 import org.python.google.common.collect.Sets;
 
@@ -56,7 +57,14 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
 
     private static final boolean DESTROY_INSTANCES_ON_SHUTDOWN = true;
 
-    private static final String INSTANCE_ID_REGION_SEPARATOR = "/";
+    // jClouds use the format "region/instanceIdInsideRegion" as the complete instanceId
+    private static final String INSTANCE_ID_REGION_DELIMITER = "/";
+
+    // as INSTANCE_ID_REGION_DELIMITER('/') is invalid in the node name, we use another delimiter to replace INSTANCE_ID_REGION_DELIMITER
+    // this delimiter is supposed to not appear in the AWS region.
+    private static final String INSTANCE_ID_REGION_DELIMITER_IN_NODENAME = "__";
+
+    private static final char NODE_INDEX_DELIMITER = '_';
 
     private static final Logger logger = Logger.getLogger(AWSEC2Infrastructure.class);
 
@@ -326,13 +334,8 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
 
     private void deployNodesOnInstance(final String instanceId, final boolean existPersistedInstanceIds) {
         nodeSource.executeInParallel(() -> {
-            String nodeName;
-            // use the instance id without region as the node name
-            if (instanceId.contains(INSTANCE_ID_REGION_SEPARATOR)) {
-                nodeName = instanceId.split(INSTANCE_ID_REGION_SEPARATOR)[1];
-            } else {
-                nodeName = instanceId;
-            }
+            //change the delimiter between the instanceId and region to make a valid nodeName
+            String baseNodeName = getBaseNodeNameFromInstanceId(instanceId);
 
             List<String> scripts = linuxInitScriptGenerator.buildScript(instanceId,
                                                                         getRmUrl(),
@@ -340,13 +343,16 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
                                                                         INSTANCE_ID_NODE_PROPERTY,
                                                                         additionalProperties,
                                                                         nodeSource.getName(),
-                                                                        nodeName,
+                                                                        baseNodeName,
                                                                         numberOfNodesPerInstance);
 
             // declare nodes as "deploying" state to the RM
-            List<String> nodeNames = RMNodeStarter.getWorkersNodeNames(nodeName, numberOfNodesPerInstance);
-            addMultipleDeployingNodes(nodeNames, scripts.toString(), "Nodes deployment on AWS EC2", nodeTimeout);
-            logger.info("Deploying nodes: " + nodeNames);
+            List<String> nodeNames = RMNodeStarter.getWorkersNodeNames(baseNodeName, numberOfNodesPerInstance);
+            List<String> deployingNodes = addMultipleDeployingNodes(nodeNames,
+                                                                    scripts.toString(),
+                                                                    "Nodes deployment on AWS EC2",
+                                                                    nodeTimeout);
+            logger.info("Deploying nodes: " + deployingNodes);
             // run node.jar on the instance with the specified VM credentials
             try {
                 connectorIaasController.executeScriptWithKeyAuthentication(getInfrastructureId(),
@@ -462,6 +468,51 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
         String instanceId = getInstanceIdProperty(node);
 
         addNewNodeForInstance(instanceId, node.getNodeInformation().getName());
+    }
+
+    @Override
+    protected void notifyDeployingNodeLost(String pnURL) {
+        super.notifyDeployingNodeLost(pnURL);
+        logger.info("Unregistering the lost node " + pnURL);
+        RMDeployingNode currentNode = getDeployingOrLostNode(pnURL);
+        String instanceId = parseInstanceIdFromNodeName(currentNode.getNodeName());
+
+        // Delete the instance when instance doesn't contain any other deploying nodes or persisted nodes
+        if (!existOtherDeployingNodesOnInstance(currentNode, instanceId) &&
+            !existRegisteredNodesOnInstance(instanceId)) {
+            connectorIaasController.terminateInstance(getInfrastructureId(), instanceId);
+        }
+    }
+
+    private boolean existOtherDeployingNodesOnInstance(RMDeployingNode currentNode, String instanceTag) {
+        for (RMDeployingNode node : getDeployingAndLostNodes()) {
+            if (!node.equals(currentNode) && !node.isLost() &&
+                parseInstanceIdFromNodeName(node.getNodeName()).equals(instanceTag)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Parse the instanceId (i.e., baseNodeName) from the complete nodeName.
+     * The nodeName may contain an index (e.g., _0, _1) as suffix or not.
+     * @param nodeName (e.g., region__instance-id_0, region__instance-id_1, or region__instance-id)
+     * @return instanceId with AWS format (e.g., region/instance-id)
+     */
+    private static String parseInstanceIdFromNodeName(String nodeName) {
+        int indexNodeSeparator = nodeName.lastIndexOf(NODE_INDEX_DELIMITER);
+        // when nodeName contains no NODE_INDEX_DELIMITER, baseNodeName is same as nodeName, otherwise it's the part before NODE_INDEX_DELIMITER
+        String baseNodeName = (indexNodeSeparator == -1) ? nodeName : nodeName.substring(0, indexNodeSeparator);
+        return getInstanceIdFromBaseNodeName(baseNodeName);
+    }
+
+    private static String getInstanceIdFromBaseNodeName(String baseNodeName) {
+        return baseNodeName.replaceFirst(INSTANCE_ID_REGION_DELIMITER_IN_NODENAME, INSTANCE_ID_REGION_DELIMITER);
+    }
+
+    private static String getBaseNodeNameFromInstanceId(String instanceId) {
+        return instanceId.replaceFirst(INSTANCE_ID_REGION_DELIMITER, INSTANCE_ID_REGION_DELIMITER_IN_NODENAME);
     }
 
     @Override

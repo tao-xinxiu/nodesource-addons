@@ -427,11 +427,6 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         return false;
     }
 
-    private boolean existRegisteredNodesOnInstance(String instanceTag) {
-        nodesPerInstance = getNodesPerInstancesMap();
-        return nodesPerInstance.get(instanceTag) != null && !nodesPerInstance.get(instanceTag).isEmpty();
-    }
-
     private void terminateInstance(String infrastructureId, String instanceTag) {
         nodeSource.executeInParallel(() -> {
             writeDeletingLock.lock();

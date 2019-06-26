@@ -455,6 +455,11 @@ public abstract class AbstractAddonInfrastructure extends InfrastructureManager 
         return getNodesPerInstancesMapCopy().size();
     }
 
+    protected boolean existRegisteredNodesOnInstance(String instanceTag) {
+        nodesPerInstance = getNodesPerInstancesMap();
+        return nodesPerInstance.get(instanceTag) != null && !nodesPerInstance.get(instanceTag).isEmpty();
+    }
+
     /**
      * Take into account a node in the tracked removed nodes and mark the
      * given instance as free if all the nodes are marked as removed for this
