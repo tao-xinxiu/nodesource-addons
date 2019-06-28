@@ -56,6 +56,16 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
 
     private static final int NUMBER_OF_PARAMETERS = 18;
 
+    private static final String DEFAULT_IMAGE = "eu-west-3/ami-03bca18cb3dc173c9";
+
+    private static final String DEFAULT_VM_USERNAME = "ubuntu";
+
+    private static final int DEFAULT_RAM = 2048;
+
+    private static final int DEFAULT_CORES = 2;
+
+    private static final int DEFAULT_NODE_TIMEOUT = 5 * 60 * 1000;// 5 min
+
     private static final boolean DESTROY_INSTANCES_ON_SHUTDOWN = true;
 
     // jClouds use the format "region/instanceIdInsideRegion" as the complete instanceId
@@ -69,66 +79,67 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
 
     private static final Logger logger = Logger.getLogger(AWSEC2Infrastructure.class);
 
-    private static final LinuxInitScriptGenerator linuxInitScriptGenerator = new LinuxInitScriptGenerator();
+    private transient LinuxInitScriptGenerator linuxInitScriptGenerator = new LinuxInitScriptGenerator();
 
     // Lock for acquireNodes (dynamic policy)
     private final transient Lock dynamicAcquireLock = new ReentrantLock();
 
     private boolean isCreatedInfrastructure = false;
 
-    @Configurable(description = "The AWS_AKEY")
-    protected String aws_key = null;
+    @Configurable(description = "Your AWS access key ID (for example, AKIAIOSFODNN7EXAMPLE)")
+    protected String awsKey = null;
 
-    @Configurable(description = "The AWS_SKEY")
-    protected String aws_secret_key = null;
+    @Configurable(password = true, description = "Your AWS secret access key (for example, wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY)")
+    protected String awsSecretKey = null;
 
-    @Configurable(description = "Resource manager hostname or ip address")
+    @Configurable(description = "The number of VMs to create (maximum number of VMs in case of dynamic policy)")
+    protected int numberOfInstances = 1;
+
+    @Configurable(description = "The number of nodes to create on each VM")
+    protected int numberOfNodesPerInstance = 1;
+
+    @Configurable(description = "(optional, default value: " + DEFAULT_IMAGE + ") VM image id, format region/imageId")
+    protected String image = DEFAULT_IMAGE;
+
+    @Configurable(description = "(optional, default value: " + DEFAULT_VM_USERNAME +
+                                ") Default username of your VM image, make sure it's adapted to 'image'")
+    protected String vmUsername = DEFAULT_VM_USERNAME;
+
+    @Configurable(description = "(optional) The name of your AWS key pair for accessing VM")
+    protected String vmKeyPairName = null;
+
+    @Configurable(fileBrowser = true, description = "(optional) Your AWS private key file corresponding to 'vmKeyPairName' for accessing VM")
+    protected byte[] vmPrivateKey;
+
+    @Configurable(description = "(optional) The minimum RAM required (in Mega Bytes) for each VM")
+    protected int ram = DEFAULT_RAM;
+
+    @Configurable(description = "(optional) The minimum number of CPU cores required for each VM")
+    protected int cores = DEFAULT_CORES;
+
+    @Configurable(description = "(optional) The maximum price that you are willing to pay per hour per instance (your bid price)")
+    protected String spotPrice = null;
+
+    @Configurable(description = "(optional) The name(s) of the Security group(s) for VMs")
+    protected String securityGroupNames = null;
+
+    @Configurable(description = "(optional) The Subnet ID which is added to a specific Amazon VPC.")
+    protected String subnetId = null;
+
+    @Configurable(description = "Resource Manager hostname or ip address (must be accessible from nodes)")
     protected String rmHostname = generateDefaultRMHostname();
 
     @Configurable(description = "Connector-iaas URL")
     protected String connectorIaasURL = "http://" + generateDefaultRMHostname() + ":8080/connector-iaas";
 
-    @Configurable(description = "Image")
-    protected String image = null;
+    @Configurable(description = "URL used to download the node jar on the VM")
+    protected String nodeJarURL = linuxInitScriptGenerator.generateDefaultNodeJarURL(rmHostname);
 
-    @Configurable(description = "The virtual machine Username (optional)")
-    protected String vmUsername = null;
-
-    @Configurable(description = "The name of the AWS key pair (optional)")
-    protected String vmKeyPairName = null;
-
-    @Configurable(fileBrowser = true, description = "The AWS private key file (optional)")
-    protected byte[] vmPrivateKey;
-
-    @Configurable(description = "Total instance to create")
-    protected int numberOfInstances = 1;
-
-    @Configurable(description = "Total nodes to create per instance")
-    protected int numberOfNodesPerInstance = 1;
-
-    @Configurable(description = "Command used to download the worker jar")
-    protected String downloadCommand = LinuxInitScriptGenerator.generateDefaultDownloadCommand(rmHostname);
-
-    @Configurable(description = "Additional Java command properties (e.g. \"-Dpropertyname=propertyvalue\")")
+    @Configurable(description = "(optional) Additional Java command properties (e.g. \"-Dpropertyname=propertyvalue\")")
     protected String additionalProperties = "";
 
-    @Configurable(description = "minumum RAM required (in Mega Bytes)")
-    protected int ram = 512;
-
-    @Configurable(description = "minimum number of CPU cores required")
-    protected int cores = 1;
-
-    @Configurable(description = "Spot Price")
-    protected String spotPrice = null;
-
-    @Configurable(description = "Security Group Names")
-    protected String securityGroupNames = null;
-
-    @Configurable(description = "Subnet and VPC")
-    protected String subnetId = null;
-
-    @Configurable(description = "Node timeout in ms. After this timeout expired, the node is considered to be lost")
-    protected int nodeTimeout = 5 * 60 * 1000;// 5 min
+    @Configurable(description = "The timeout for nodes to connect to RM (in ms). After this timeout expired, the node is considered to be lost.")
+    protected int nodeTimeout = DEFAULT_NODE_TIMEOUT;// 5 min
 
     /**
      * Key to retrieve the key pair used to deploy the infrastructure
@@ -142,24 +153,24 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
         validate(parameters);
 
         int parameterIndex = 0;
-        this.aws_key = parameters[parameterIndex++].toString().trim();
-        this.aws_secret_key = parameters[parameterIndex++].toString().trim();
-        this.rmHostname = parameters[parameterIndex++].toString().trim();
-        this.connectorIaasURL = parameters[parameterIndex++].toString().trim();
+        this.awsKey = parameters[parameterIndex++].toString().trim();
+        this.awsSecretKey = parameters[parameterIndex++].toString().trim();
+        this.numberOfInstances = parseIntParameter("numberOfInstances", parameters[parameterIndex++]);
+        this.numberOfNodesPerInstance = parseIntParameter("numberOfNodesPerInstance", parameters[parameterIndex++]);
         this.image = parameters[parameterIndex++].toString().trim();
         this.vmUsername = parameters[parameterIndex++].toString().trim();
         this.vmKeyPairName = parameters[parameterIndex++].toString().trim();
         this.vmPrivateKey = (byte[]) parameters[parameterIndex++];
-        this.numberOfInstances = Integer.parseInt(parameters[parameterIndex++].toString().trim());
-        this.numberOfNodesPerInstance = Integer.parseInt(parameters[parameterIndex++].toString().trim());
-        this.downloadCommand = parameters[parameterIndex++].toString().trim();
-        this.additionalProperties = parameters[parameterIndex++].toString().trim();
-        this.ram = Integer.parseInt(parameters[parameterIndex++].toString().trim());
-        this.cores = Integer.parseInt(parameters[parameterIndex++].toString().trim());
+        this.ram = parseIntParameter("ram", parameters[parameterIndex++]);
+        this.cores = parseIntParameter("cores", parameters[parameterIndex++]);
         this.spotPrice = parameters[parameterIndex++].toString().trim();
         this.securityGroupNames = parameters[parameterIndex++].toString().trim();
         this.subnetId = parameters[parameterIndex++].toString().trim();
-        this.nodeTimeout = Integer.parseInt(parameters[parameterIndex++].toString().trim());
+        this.rmHostname = parameters[parameterIndex++].toString().trim();
+        this.connectorIaasURL = parameters[parameterIndex++].toString().trim();
+        this.nodeJarURL = parameters[parameterIndex++].toString().trim();
+        this.additionalProperties = parameters[parameterIndex++].toString().trim();
+        this.nodeTimeout = parseIntParameter("nodeTimeout", parameters[parameterIndex++]);
 
         connectorIaasController = new ConnectorIaasController(connectorIaasURL, INFRASTRUCTURE_TYPE);
     }
@@ -169,44 +180,14 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
             throw new IllegalArgumentException("Invalid parameters for EC2Infrastructure creation");
         }
         int parameterIndex = 0;
-        // aws_key
+        // awsKey
         if (parameters[parameterIndex] == null) {
-            throw new IllegalArgumentException("EC2 key must be specified");
+            throw new IllegalArgumentException("AWS access key ID must be specified");
         }
         parameterIndex++;
-        // aws_secret_key
+        // awsSecretKey
         if (parameters[parameterIndex] == null) {
-            throw new IllegalArgumentException("EC2 secret key  must be specified");
-        }
-        parameterIndex++;
-        // rmHostname
-        if (parameters[parameterIndex] == null) {
-            throw new IllegalArgumentException("The Resource manager hostname must be specified");
-        }
-        parameterIndex++;
-        // connectorIaasURL
-        if (parameters[parameterIndex] == null) {
-            throw new IllegalArgumentException("The connector-iaas URL must be specified");
-        }
-        parameterIndex++;
-        // image
-        if (parameters[parameterIndex] == null) {
-            throw new IllegalArgumentException("The image id must be specified");
-        }
-        parameterIndex++;
-        // vmUsername
-        if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex] = "";
-        }
-        parameterIndex++;
-        // vmKeyPairName
-        if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex] = "";
-        }
-        parameterIndex++;
-        // vmPrivateKey
-        if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex] = "";
+            throw new IllegalArgumentException("AWS secret access key must be specified");
         }
         parameterIndex++;
         // numberOfInstances
@@ -219,24 +200,38 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
             throw new IllegalArgumentException("The number of nodes per instance to deploy must be specified");
         }
         parameterIndex++;
-        // downloadCommand
+        // image
         if (parameters[parameterIndex] == null) {
-            throw new IllegalArgumentException("The download node.jar command must be specified");
+            parameters[parameterIndex] = DEFAULT_IMAGE;
+        }
+        if (!parameters[parameterIndex].toString().contains("/")) {
+            throw new IllegalArgumentException(String.format("Invalid image %s (image should be in format 'region/ami-id').",
+                                                             parameters[parameterIndex]));
         }
         parameterIndex++;
-        // additionalProperties
+        // vmUsername
+        if (parameters[parameterIndex] == null) {
+            parameters[parameterIndex] = DEFAULT_VM_USERNAME;
+        }
+        parameterIndex++;
+        // vmKeyPairName
+        if (parameters[parameterIndex] == null) {
+            parameters[parameterIndex] = "";
+        }
+        parameterIndex++;
+        // vmPrivateKey
         if (parameters[parameterIndex] == null) {
             parameters[parameterIndex] = "";
         }
         parameterIndex++;
         // ram
         if (parameters[parameterIndex] == null) {
-            throw new IllegalArgumentException("The amount of minimum RAM required must be specified");
+            parameters[parameterIndex] = DEFAULT_RAM;
         }
         parameterIndex++;
         // cores
         if (parameters[parameterIndex] == null) {
-            throw new IllegalArgumentException("The minimum number of cores required must be specified");
+            parameters[parameterIndex] = DEFAULT_CORES;
         }
         parameterIndex++;
         // spotPrice
@@ -250,6 +245,24 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
         }
         parameterIndex++;
         // subnetId
+        if (parameters[parameterIndex] == null) {
+            parameters[parameterIndex] = "";
+        }
+        parameterIndex++;
+        // rmHostname
+        checkRMHostname(parameters[parameterIndex].toString());
+        parameterIndex++;
+        // connectorIaasURL
+        if (parameters[parameterIndex] == null) {
+            throw new IllegalArgumentException("The connector-iaas URL must be specified");
+        }
+        parameterIndex++;
+        // nodeJarURL
+        if (parameters[parameterIndex] == null) {
+            throw new IllegalArgumentException("The URL for downloading the node jar must be specified");
+        }
+        parameterIndex++;
+        // additionalProperties
         if (parameters[parameterIndex] == null) {
             parameters[parameterIndex] = "";
         }
@@ -345,8 +358,8 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
         // Create infrastructure if it does not exist
         if (!isCreatedInfrastructure) {
             connectorIaasController.createInfrastructure(getInfrastructureId(),
-                                                         aws_key,
-                                                         aws_secret_key,
+                                                         awsKey,
+                                                         awsSecretKey,
                                                          null,
                                                          DESTROY_INSTANCES_ON_SHUTDOWN);
             isCreatedInfrastructure = true;
@@ -388,6 +401,7 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
             List<String> scripts = linuxInitScriptGenerator.buildScript(instanceId,
                                                                         getRmUrl(),
                                                                         rmHostname,
+                                                                        nodeJarURL,
                                                                         INSTANCE_ID_NODE_PROPERTY,
                                                                         additionalProperties,
                                                                         nodeSource.getName(),
@@ -543,18 +557,18 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
      * @param nodeName (e.g., region__instance-id_0, region__instance-id_1, or region__instance-id)
      * @return instanceId with AWS format (e.g., region/instance-id)
      */
-    private static String parseInstanceIdFromNodeName(String nodeName) {
+    private static String parseInstanceIdFromNodeName(final String nodeName) {
         int indexNodeSeparator = nodeName.lastIndexOf(NODE_INDEX_DELIMITER);
         // when nodeName contains no NODE_INDEX_DELIMITER, baseNodeName is same as nodeName, otherwise it's the part before NODE_INDEX_DELIMITER
         String baseNodeName = (indexNodeSeparator == -1) ? nodeName : nodeName.substring(0, indexNodeSeparator);
         return getInstanceIdFromBaseNodeName(baseNodeName);
     }
 
-    private static String getInstanceIdFromBaseNodeName(String baseNodeName) {
+    private static String getInstanceIdFromBaseNodeName(final String baseNodeName) {
         return baseNodeName.replaceFirst(INSTANCE_ID_REGION_DELIMITER_IN_NODENAME, INSTANCE_ID_REGION_DELIMITER);
     }
 
-    private static String getBaseNodeNameFromInstanceId(String instanceId) {
+    private static String getBaseNodeNameFromInstanceId(final String instanceId) {
         return instanceId.replaceFirst(INSTANCE_ID_REGION_DELIMITER, INSTANCE_ID_REGION_DELIMITER_IN_NODENAME);
     }
 

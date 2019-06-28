@@ -580,4 +580,23 @@ public abstract class AbstractAddonInfrastructure extends InfrastructureManager 
                     instancesWithoutNodesMap);
     }
 
+    protected int parseIntParameter(String parameterName, Object parameter) {
+        try {
+            return Integer.parseInt(parameter.toString().trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(String.format("Non numeric value (\"%s\") for the parameter \"%s\".",
+                                                             parameter.toString(),
+                                                             parameterName));
+        }
+    }
+
+    protected void checkRMHostname(String rmHostname) {
+        if (rmHostname == null) {
+            throw new IllegalArgumentException("The resource manager hostname must be specified");
+        }
+        if (rmHostname.contains("/")) {
+            throw new IllegalArgumentException(String.format("Invalid hostname %s (hostname should not contains '/').",
+                                                             rmHostname));
+        }
+    }
 }
