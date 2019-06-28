@@ -54,7 +54,7 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
 
     public static final String INFRASTRUCTURE_TYPE = "aws-ec2";
 
-    private static final int NUMBER_OF_PARAMETERS = 18;
+    private static final int NUMBER_OF_PARAMETERS = 17;
 
     private static final String DEFAULT_IMAGE = "eu-west-3/ami-03bca18cb3dc173c9";
 
@@ -86,10 +86,10 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
 
     private boolean isCreatedInfrastructure = false;
 
-    @Configurable(description = "Your AWS access key ID (for example, AKIAIOSFODNN7EXAMPLE)")
+    @Configurable(description = "Your AWS access key ID (e.g., AKIAIOSFODNN7EXAMPLE)")
     protected String awsKey = null;
 
-    @Configurable(password = true, description = "Your AWS secret access key (for example, wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY)")
+    @Configurable(description = "Your AWS secret access key (e.g., wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY)")
     protected String awsSecretKey = null;
 
     @Configurable(description = "The number of VMs to create (maximum number of VMs in case of dynamic policy)")
@@ -117,13 +117,14 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
     @Configurable(description = "(optional) The minimum number of CPU cores required for each VM")
     protected int cores = DEFAULT_CORES;
 
-    @Configurable(description = "(optional) The maximum price that you are willing to pay per hour per instance (your bid price)")
-    protected String spotPrice = null;
+    // disable to configure the parameter spotPrice for the moment, because we don't yet have a checking mechanism for it now, but it may cause the RM portal blocked (hanging in createInstance).
+    //    @Configurable(description = "(optional) The maximum price that you are willing to pay per hour per instance (your bid price)")
+    protected String spotPrice = "";
 
-    @Configurable(description = "(optional) The name(s) of the Security group(s) for VMs")
-    protected String securityGroupNames = null;
+    @Configurable(description = "(optional) The ids(s) of the security group(s) for VMs, spearated by comma in case of multiple ids.")
+    protected String securityGroupIds = null;
 
-    @Configurable(description = "(optional) The Subnet ID which is added to a specific Amazon VPC.")
+    @Configurable(description = "(optional) The subnet ID which is added to a specific Amazon VPC.")
     protected String subnetId = null;
 
     @Configurable(description = "Resource Manager hostname or ip address (must be accessible from nodes)")
@@ -163,8 +164,8 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
         this.vmPrivateKey = (byte[]) parameters[parameterIndex++];
         this.ram = parseIntParameter("ram", parameters[parameterIndex++]);
         this.cores = parseIntParameter("cores", parameters[parameterIndex++]);
-        this.spotPrice = parameters[parameterIndex++].toString().trim();
-        this.securityGroupNames = parameters[parameterIndex++].toString().trim();
+        //        this.spotPrice = parameters[parameterIndex++].toString().trim();
+        this.securityGroupIds = parameters[parameterIndex++].toString().trim();
         this.subnetId = parameters[parameterIndex++].toString().trim();
         this.rmHostname = parameters[parameterIndex++].toString().trim();
         this.connectorIaasURL = parameters[parameterIndex++].toString().trim();
@@ -234,12 +235,12 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
             parameters[parameterIndex] = DEFAULT_CORES;
         }
         parameterIndex++;
-        // spotPrice
-        if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex] = "";
-        }
-        parameterIndex++;
-        // securityGroupNames
+        //        // spotPrice
+        //        if (parameters[parameterIndex] == null) {
+        //            parameters[parameterIndex] = "";
+        //        }
+        //        parameterIndex++;
+        // securityGroupIds
         if (parameters[parameterIndex] == null) {
             parameters[parameterIndex] = "";
         }
@@ -368,7 +369,7 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
 
     private Set<String> createInstances(String infrastructureId, String keyPairName, int nbInstances) {
         // create instances
-        if (spotPrice.isEmpty() && securityGroupNames.isEmpty() && subnetId.isEmpty()) {
+        if (spotPrice.isEmpty() && securityGroupIds.isEmpty() && subnetId.isEmpty()) {
             return connectorIaasController.createAwsEc2Instances(infrastructureId,
                                                                  infrastructureId,
                                                                  image,
@@ -385,7 +386,7 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
                                                                             cores,
                                                                             ram,
                                                                             spotPrice,
-                                                                            securityGroupNames,
+                                                                            securityGroupIds,
                                                                             subnetId,
                                                                             null,
                                                                             vmUsername,

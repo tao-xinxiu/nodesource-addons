@@ -76,7 +76,7 @@ public class AWSEC2InfrastructureTest {
 
     private static final int CORES = 1;
 
-    private static final String SPOT_PRICE = "0.05";
+    private static final String SPOT_PRICE = ""; //"0.05";
 
     private static final String SECURITY_GROUP_NAMES = "sg-default";
 
@@ -157,7 +157,7 @@ public class AWSEC2InfrastructureTest {
                                        VM_PRIVATE_KEY,
                                        RAM,
                                        CORES,
-                                       SPOT_PRICE,
+                                       //                                       SPOT_PRICE,
                                        SECURITY_GROUP_NAMES,
                                        SUBNET_ID,
                                        RM_HOSTNAME,
@@ -177,7 +177,7 @@ public class AWSEC2InfrastructureTest {
                                        VM_PRIVATE_KEY,
                                        RAM,
                                        CORES,
-                                       SPOT_PRICE,
+                                       //                                       SPOT_PRICE,
                                        SECURITY_GROUP_NAMES,
                                        SUBNET_ID,
                                        RM_HOSTNAME,
@@ -199,7 +199,7 @@ public class AWSEC2InfrastructureTest {
                                        VM_PRIVATE_KEY,
                                        RAM,
                                        CORES,
-                                       SPOT_PRICE,
+                                       //                                       SPOT_PRICE,
                                        SECURITY_GROUP_NAMES,
                                        SUBNET_ID,
                                        RM_HOSTNAME,
@@ -294,7 +294,7 @@ public class AWSEC2InfrastructureTest {
                                        VM_PRIVATE_KEY,
                                        RAM,
                                        CORES,
-                                       SPOT_PRICE,
+                                       //                                       SPOT_PRICE,
                                        SECURITY_GROUP_NAMES,
                                        SUBNET_ID,
                                        RM_HOSTNAME,
@@ -389,7 +389,7 @@ public class AWSEC2InfrastructureTest {
                                        VM_PRIVATE_KEY,
                                        RAM,
                                        CORES,
-                                       SPOT_PRICE,
+                                       //                                       SPOT_PRICE,
                                        SECURITY_GROUP_NAMES,
                                        SUBNET_ID,
                                        RM_HOSTNAME,
@@ -435,7 +435,7 @@ public class AWSEC2InfrastructureTest {
                                        VM_PRIVATE_KEY,
                                        RAM,
                                        CORES,
-                                       SPOT_PRICE,
+                                       //                                       SPOT_PRICE,
                                        SECURITY_GROUP_NAMES,
                                        SUBNET_ID,
                                        RM_HOSTNAME,
