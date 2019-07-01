@@ -117,7 +117,7 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
     @Configurable(description = "(optional) The minimum number of CPU cores required for each VM")
     protected int cores = DEFAULT_CORES;
 
-    // disable to configure the parameter spotPrice for the moment, because we don't yet have a checking mechanism for it now, but it may cause the RM portal blocked (hanging in createInstance).
+    // TODO disable to configure the parameter spotPrice for the moment, because we don't yet have a checking mechanism for it now, but it may cause the RM portal blocked (hanging in createInstance).
     //    @Configurable(description = "(optional) The maximum price that you are willing to pay per hour per instance (your bid price)")
     protected String spotPrice = "";
 
@@ -164,6 +164,7 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
         this.vmPrivateKey = (byte[]) parameters[parameterIndex++];
         this.ram = parseIntParameter("ram", parameters[parameterIndex++]);
         this.cores = parseIntParameter("cores", parameters[parameterIndex++]);
+        //        TODO disable to configure the parameter spotPrice for the moment
         //        this.spotPrice = parameters[parameterIndex++].toString().trim();
         this.securityGroupIds = parameters[parameterIndex++].toString().trim();
         this.subnetId = parameters[parameterIndex++].toString().trim();
@@ -235,6 +236,7 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
             parameters[parameterIndex] = DEFAULT_CORES;
         }
         parameterIndex++;
+        //        TODO disable to configure the parameter spotPrice for the moment
         //        // spotPrice
         //        if (parameters[parameterIndex] == null) {
         //            parameters[parameterIndex] = "";
