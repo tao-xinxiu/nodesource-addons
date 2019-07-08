@@ -57,7 +57,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     public static final String INFRASTRUCTURE_TYPE = "google-compute-engine";
 
     @Getter
-    public final String instanceIdNodeProperty = "instanceTag";
+    private final String instanceIdNodeProperty = "instanceTag";
 
     private static final int NUMBER_OF_PARAMETERS = 15;
 

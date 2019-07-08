@@ -447,7 +447,7 @@ public class AWSEC2InfrastructureTest {
 
         awsec2Infrastructure.connectorIaasController = connectorIaasController;
 
-        when(node.getProperty(awsec2Infrastructure.instanceIdNodeProperty)).thenReturn("123");
+        when(node.getProperty(awsec2Infrastructure.getInstanceIdNodeProperty())).thenReturn("123");
 
         when(node.getNodeInformation()).thenReturn(nodeInformation);
 

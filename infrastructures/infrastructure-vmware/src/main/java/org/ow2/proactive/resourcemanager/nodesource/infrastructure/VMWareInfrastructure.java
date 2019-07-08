@@ -42,7 +42,7 @@ import lombok.Getter;
 public class VMWareInfrastructure extends AbstractAddonInfrastructure {
 
     @Getter
-    public final String instanceIdNodeProperty = "instanceId";
+    private final String instanceIdNodeProperty = "instanceId";
 
     public static final String INFRASTRUCTURE_TYPE = "vmware";
 

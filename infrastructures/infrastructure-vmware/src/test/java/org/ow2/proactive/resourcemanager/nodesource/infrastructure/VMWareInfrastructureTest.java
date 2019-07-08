@@ -377,7 +377,7 @@ public class VMWareInfrastructureTest {
 
         vmwareInfrastructure.connectorIaasController = connectorIaasController;
 
-        when(node.getProperty(vmwareInfrastructure.instanceIdNodeProperty)).thenReturn("123");
+        when(node.getProperty(vmwareInfrastructure.getInstanceIdNodeProperty())).thenReturn("123");
 
         when(node.getNodeInformation()).thenReturn(nodeInformation);
 
@@ -420,7 +420,7 @@ public class VMWareInfrastructureTest {
 
         vmwareInfrastructure.connectorIaasController = connectorIaasController;
 
-        when(node.getProperty(vmwareInfrastructure.instanceIdNodeProperty)).thenReturn("123");
+        when(node.getProperty(vmwareInfrastructure.getInstanceIdNodeProperty())).thenReturn("123");
 
         when(node.getNodeInformation()).thenReturn(nodeInformation);
 

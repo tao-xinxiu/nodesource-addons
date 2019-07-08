@@ -58,7 +58,7 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
     private static final int NUMBER_OF_PARAMETERS = 17;
 
     @Getter
-    public final String instanceIdNodeProperty = "instanceTag";
+    private final String instanceIdNodeProperty = "instanceTag";
 
     public static final String INFRASTRUCTURE_TYPE = "openstack-nova";
 
