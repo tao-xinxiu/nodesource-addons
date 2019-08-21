@@ -1,8 +1,10 @@
-apply plugin: 'java'
+import com.github.jk1.license.render.*
 
+apply plugin: 'java'
+apply from: "$rootDir/gradle/ext/coding-format.gradle"
+apply plugin: 'com.github.jk1.dependency-license-report'
 
 archivesBaseName = 'nodesource-addons'
-
 
 buildscript {
     repositories {
@@ -22,13 +24,19 @@ buildscript {
         classpath "com.diffplug.gradle.spotless:spotless:2.4.0"
         classpath "org.ow2.proactive:coding-rules:1.0.0"
         classpath "org.sonarsource.scanner.gradle:sonarqube-gradle-plugin:2.6.1"
+        classpath 'com.github.jk1:gradle-license-report:1.7'
+    }
+
+    dependencies {
         delete "gradle/ext"
         ant.unjar src: configurations.classpath.find { it.name.startsWith("coding-rules") }, dest: 'gradle/ext'
     }
 }
 
-apply from: "$rootDir/gradle/ext/coding-format.gradle"
-apply plugin: 'org.sonarqube'
+licenseReport {
+    configurations = ['runtime']
+    renderers = [new InventoryHtmlReportRenderer()]
+}
 
 allprojects {
     apply plugin: 'maven'
@@ -63,18 +71,18 @@ ext.javaSubprojects = subprojects.findAll { new File(it.projectDir, "src").exist
 
 configure(javaSubprojects) {
     apply plugin: 'java'
-    apply plugin: "sonar-runner"
+    apply plugin: 'org.sonarqube'
     apply plugin: 'jacoco'
 
-    sonarRunner {
-        sonarProperties {
+    sonarqube {
+        properties {
             property "sonar.projectKey", "$project.group:nodesource-addons"
             property "sonar.projectName", "nodesource-addons"
             property "sonar.jdbc.driverClassName", "org.postgresql.Driver"
             property "sonar.language", "java"
             property "sonar.sources", "src/main"
-            property 'sonar.jacoco.reportPath', "${buildDir}/jacoco/testDebug.exec"
-            property 'sonar.junit.reportsPath', "${buildDir}/test-results"
+            property 'sonar.jacoco.reportPath', "${buildDir}/jacoco/test.exec"
+            property 'sonar.junit.reportsPath', "${buildDir}/test-results/test"
         }
     }
 
