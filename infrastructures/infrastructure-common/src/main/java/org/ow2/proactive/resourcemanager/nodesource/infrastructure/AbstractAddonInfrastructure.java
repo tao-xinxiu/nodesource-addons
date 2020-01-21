@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.Logger;
 import org.objectweb.proactive.core.ProActiveException;
 import org.objectweb.proactive.core.node.Node;
@@ -608,8 +609,12 @@ public abstract class AbstractAddonInfrastructure extends InfrastructureManager 
         }
     }
 
+    protected boolean parameterValueIsNotSpecified(Object parameterValue) {
+        return parameterValue == null || StringUtils.isBlank(parameterValue.toString());
+    }
+
     protected void checkRMHostname(String rmHostname) {
-        if (rmHostname == null) {
+        if (parameterValueIsNotSpecified(rmHostname)) {
             throw new IllegalArgumentException("The resource manager hostname must be specified");
         }
         if (rmHostname.contains("/")) {
