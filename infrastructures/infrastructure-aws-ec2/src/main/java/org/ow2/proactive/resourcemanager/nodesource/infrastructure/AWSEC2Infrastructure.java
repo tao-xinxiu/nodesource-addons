@@ -191,27 +191,27 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
         }
         int parameterIndex = 0;
         // awsKey
-        if (parameters[parameterIndex] == null) {
+        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
             throw new IllegalArgumentException("AWS access key ID must be specified");
         }
         parameterIndex++;
         // awsSecretKey
-        if (parameters[parameterIndex] == null) {
+        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
             throw new IllegalArgumentException("AWS secret access key must be specified");
         }
         parameterIndex++;
         // numberOfInstances
-        if (parameters[parameterIndex] == null) {
+        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
             throw new IllegalArgumentException("The number of instances to create must be specified");
         }
         parameterIndex++;
         // numberOfNodesPerInstance
-        if (parameters[parameterIndex] == null) {
+        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
             throw new IllegalArgumentException("The number of nodes per instance to deploy must be specified");
         }
         parameterIndex++;
         // image
-        if (parameters[parameterIndex] == null) {
+        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
             parameters[parameterIndex] = DEFAULT_IMAGE;
         }
         if (!parameters[parameterIndex].toString().contains("/")) {
@@ -220,7 +220,7 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
         }
         parameterIndex++;
         // vmUsername
-        if (parameters[parameterIndex] == null) {
+        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
             parameters[parameterIndex] = DEFAULT_VM_USERNAME;
         }
         parameterIndex++;
@@ -235,12 +235,12 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
         }
         parameterIndex++;
         // ram
-        if (parameters[parameterIndex] == null) {
+        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
             parameters[parameterIndex] = DEFAULT_RAM;
         }
         parameterIndex++;
         // cores
-        if (parameters[parameterIndex] == null) {
+        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
             parameters[parameterIndex] = DEFAULT_CORES;
         }
         parameterIndex++;
@@ -264,12 +264,12 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
         checkRMHostname(parameters[parameterIndex].toString());
         parameterIndex++;
         // connectorIaasURL
-        if (parameters[parameterIndex] == null) {
+        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
             throw new IllegalArgumentException("The connector-iaas URL must be specified");
         }
         parameterIndex++;
         // nodeJarURL
-        if (parameters[parameterIndex] == null) {
+        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
             throw new IllegalArgumentException("The URL for downloading the node jar must be specified");
         }
         parameterIndex++;
@@ -279,8 +279,8 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
         }
         parameterIndex++;
         // nodeTimeout
-        if (parameters[parameterIndex] == null) {
-            throw new IllegalArgumentException("The node timeout must be specified");
+        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
+            parameters[parameterIndex] = DEFAULT_NODE_TIMEOUT;
         }
     }
 
