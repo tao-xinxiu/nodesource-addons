@@ -66,11 +66,13 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
 
     private static final String DEFAULT_IMAGE = "debian-9-stretch-v20190326";
 
-    private static final String DEFAULT_REGION = "us-central1-a";
+    private static final String DEFAULT_REGION = "europe-west2-c";
 
     private static final int DEFAULT_RAM = 1740;
 
     private static final int DEFAULT_CORES = 1;
+
+    private static final int DEFAULT_NODE_TIMEOUT = 5 * 60 * 1000;// 5 min
 
     private static final boolean DESTROY_INSTANCES_ON_SHUTDOWN = true;
 
@@ -140,7 +142,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     protected String additionalProperties = "-Dproactive.useIPaddress=true";
 
     @Configurable(description = "Node timeout in ms. After this timeout expired, the node is considered to be lost", sectionSelector = 5)
-    protected int nodeTimeout = 2 * 60 * 1000;// 2 min
+    protected int nodeTimeout = DEFAULT_NODE_TIMEOUT;
 
     private Map<String, String> meta = new HashMap<>();
 
@@ -181,17 +183,17 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         }
         int parameterIndex = 0;
         // gceCredential
-        if (parameters[parameterIndex] == null) {
+        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
             throw new IllegalArgumentException("The Google Cloud Platform service account must be specified");
         }
         // totalNumberOfInstances
         parameterIndex++;
-        if (parameters[parameterIndex] == null) {
+        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
             throw new IllegalArgumentException("The number of instances to create must be specified");
         }
         // numberOfNodesPerInstance
         parameterIndex++;
-        if (parameters[parameterIndex] == null) {
+        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
             throw new IllegalArgumentException("The number of nodes per instance to deploy must be specified");
         }
         // vmUsername
@@ -211,22 +213,22 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         }
         // image
         parameterIndex++;
-        if (parameters[parameterIndex] == null) {
+        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
             parameters[parameterIndex] = DEFAULT_IMAGE;
         }
         // region
         parameterIndex++;
-        if (parameters[parameterIndex] == null) {
+        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
             parameters[parameterIndex] = DEFAULT_REGION;
         }
         // ram
         parameterIndex++;
-        if (parameters[parameterIndex] == null) {
+        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
             parameters[parameterIndex] = String.valueOf(DEFAULT_RAM);
         }
         // cores
         parameterIndex++;
-        if (parameters[parameterIndex] == null) {
+        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
             parameters[parameterIndex] = String.valueOf(DEFAULT_CORES);
         }
         // rmHostname
@@ -234,12 +236,12 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         checkRMHostname(parameters[parameterIndex].toString());
         // connectorIaasURL
         parameterIndex++;
-        if (parameters[parameterIndex] == null) {
+        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
             throw new IllegalArgumentException("The connector-iaas URL must be specified");
         }
         // nodeJarURL
         parameterIndex++;
-        if (parameters[parameterIndex] == null) {
+        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
             throw new IllegalArgumentException("The URL for downloading the node jar must be specified");
         }
         // additionalProperties
@@ -249,8 +251,8 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         }
         // nodeTimeout
         parameterIndex++;
-        if (parameters[parameterIndex] == null) {
-            throw new IllegalArgumentException("The node timeout must be specified");
+        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
+            parameters[parameterIndex] = String.valueOf(DEFAULT_NODE_TIMEOUT);
         }
     }
 
@@ -506,6 +508,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
                     logger.info("Removed instance: " + instanceTag);
                 }
                 // finally write to the runtime variable map
+                decrementNumberOfAcquiredNodesWithLockAndPersist();
                 persistedInfraVariables.put(NODES_PER_INSTANCES_KEY, Maps.newHashMap(nodesPerInstance));
             } else {
                 logger.error("Cannot remove node " + nodeName + " because instance " + instanceTag +
