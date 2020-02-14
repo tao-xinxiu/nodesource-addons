@@ -102,15 +102,7 @@ public class OpenstackInfrastructureTest {
         assertThat(openstackInfrastructure.image, is(nullValue()));
         assertThat(openstackInfrastructure.numberOfInstances, is(1));
         assertThat(openstackInfrastructure.numberOfNodesPerInstance, is(1));
-        if (System.getProperty("os.name").contains("Windows")) {
-            assertThat(openstackInfrastructure.downloadCommand,
-                       is("powershell -command \"& { (New-Object Net.WebClient).DownloadFile('" +
-                          openstackInfrastructure.rmHostname + ":8080/rest/node.jar', 'node.jar') }\""));
-        } else {
-            assertThat(openstackInfrastructure.downloadCommand,
-                       is("wget -nv " + openstackInfrastructure.rmHostname + ":8080/rest/node.jar"));
-
-        }
+        assertThat(openstackInfrastructure.nodeJarURL, is(openstackInfrastructure.rmHostname + ":8080/rest/node.jar"));
         assertThat(openstackInfrastructure.additionalProperties, is("-Dproactive.useIPaddress=true"));
 
     }
