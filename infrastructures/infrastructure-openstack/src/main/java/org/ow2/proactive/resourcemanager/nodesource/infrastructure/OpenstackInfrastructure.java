@@ -63,6 +63,8 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
 
     public static final String INFRASTRUCTURE_TYPE = "openstack-nova";
 
+    private static final long DEFAULT_NODES_INIT_DELAY = 4 * 60 * 1000;// 4 min
+
     private final transient Lock acquireLock = new ReentrantLock();
 
     private boolean isInitializedAndCreated = false;
@@ -93,7 +95,7 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
     @Configurable(description = "Openstack region", sectionSelector = 1, important = true)
     protected String region = null;
 
-    @Configurable(description = "Openstack identity version", sectionSelector = 1)
+    @Configurable(description = "Openstack identity version", sectionSelector = 1, important = true)
     protected String identityVersion = null;
 
     @Configurable(description = "Openstack image", sectionSelector = 3, important = true)
@@ -117,14 +119,14 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
     @Configurable(description = "Resource Manager hostname or ip address", sectionSelector = 4, important = true)
     protected String rmHostname = generateDefaultRMHostname();
 
-    @Configurable(description = "Command used to download the node jar", sectionSelector = 5, important = true)
-    protected String downloadCommand = linuxInitScriptGenerator.generateDefaultDownloadCommand(rmHostname);
+    @Configurable(description = "URL used to download the node jar on the instance", sectionSelector = 5, important = true)
+    protected String nodeJarURL = linuxInitScriptGenerator.generateDefaultNodeJarURL(rmHostname);
 
     @Configurable(description = "Additional Java command properties (e.g. \"-Dpropertyname=propertyvalue\")", sectionSelector = 5)
     protected String additionalProperties = "-Dproactive.useIPaddress=true";
 
     @Configurable(description = "Estimated startup time of the nodes (including the startup time of VMs)", sectionSelector = 5)
-    protected long nodesInitDelay = 240000;
+    protected long nodesInitDelay = DEFAULT_NODES_INIT_DELAY;
 
     /**
      * Dynamic policy parameters
@@ -177,7 +179,7 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
         this.numberOfNodesPerInstance = Integer.parseInt(parameters[12].toString().trim());
         this.connectorIaasURL = parameters[13].toString().trim();
         this.rmHostname = parameters[14].toString().trim();
-        this.downloadCommand = parameters[15].toString().trim();
+        this.nodeJarURL = parameters[15].toString().trim();
         this.additionalProperties = parameters[16].toString().trim();
         this.nodesInitDelay = Long.parseLong(parameters[17].toString().trim());
 
@@ -189,57 +191,74 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
         if (parameters == null || parameters.length < NUMBER_OF_PARAMETERS) {
             throw new IllegalArgumentException("Invalid parameters for Openstack Infrastructure creation");
         }
-
-        if (parameters[0] == null) {
+        // username
+        if (parameterValueIsNotSpecified(parameters[0])) {
             throw new IllegalArgumentException("Openstack username must be specified");
         }
-
-        if (parameters[1] == null) {
+        // password
+        if (parameterValueIsNotSpecified(parameters[1])) {
             throw new IllegalArgumentException("Openstack password must be specified");
         }
-
-        if (parameters[2] == null) {
+        // domain
+        if (parameterValueIsNotSpecified(parameters[2])) {
             throw new IllegalArgumentException("Openstack user domain must be specified");
         }
-
-        if (parameters[3] == null) {
+        // endpoint
+        if (parameterValueIsNotSpecified(parameters[3])) {
             throw new IllegalArgumentException("Openstack endpoint must be specified");
         }
-
-        if (parameters[6] == null) {
+        // scopePrefix
+        if (parameterValueIsNotSpecified(parameters[4])) {
+            throw new IllegalArgumentException("Openstack scope prefix must be specified");
+        }
+        // scopeValue
+        if (parameterValueIsNotSpecified(parameters[5])) {
+            throw new IllegalArgumentException("Openstack scope value must be specified");
+        }
+        // region
+        if (parameterValueIsNotSpecified(parameters[6])) {
             throw new IllegalArgumentException("Openstack region must be specified");
         }
-
-        if (parameters[8] == null) {
+        // identityVersion
+        if (parameterValueIsNotSpecified(parameters[7])) {
+            throw new IllegalArgumentException("Openstack identity version must be specified");
+        }
+        // image
+        if (parameterValueIsNotSpecified(parameters[8])) {
             throw new IllegalArgumentException("Openstack image id must be specified");
         }
-
-        if (parameters[9] == null) {
+        // flavor
+        if (parameterValueIsNotSpecified(parameters[9])) {
             throw new IllegalArgumentException("Openstack flavor must be specified");
         }
-
-        if (parameters[11] == null) {
+        // publicKeyName not mandatory
+        // numberOfInstances
+        if (parameterValueIsNotSpecified(parameters[11])) {
             throw new IllegalArgumentException("The number of instances to create must be specified");
         }
-
-        if (parameters[12] == null) {
+        // numberOfNodesPerInstance
+        if (parameterValueIsNotSpecified(parameters[12])) {
             throw new IllegalArgumentException("The number of nodes per instance to deploy must be specified");
         }
-
-        if (parameters[13] == null) {
+        // connectorIaasURL
+        if (parameterValueIsNotSpecified(parameters[13])) {
             throw new IllegalArgumentException("The connector-iaas URL must be specified");
         }
-
-        if (parameters[14] == null) {
+        // rmHostname
+        if (parameterValueIsNotSpecified(parameters[14])) {
             throw new IllegalArgumentException("RM host (hostname or IP address) must be specified");
         }
-
-        if (parameters[15] == null) {
-            throw new IllegalArgumentException("The command to download 'node.jar' must be specified");
+        // nodeJarURL
+        if (parameterValueIsNotSpecified(parameters[15])) {
+            throw new IllegalArgumentException("The URL to download 'node.jar' must be specified");
         }
-
+        // additionalProperties
         if (parameters[16] == null) {
-            throw new IllegalArgumentException("Additional properties to run ProActive node must be specified");
+            parameters[16] = "";
+        }
+        // nodesInitDelay
+        if (parameterValueIsNotSpecified(parameters[17])) {
+            parameters[17] = DEFAULT_NODES_INIT_DELAY;
         }
     }
 
@@ -547,6 +566,7 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
             return linuxInitScriptGenerator.buildScript(instanceTag,
                                                         getRmUrl(),
                                                         rmHostname,
+                                                        nodeJarURL,
                                                         instanceIdNodeProperty,
                                                         additionalProperties,
                                                         nodeSource.getName(),
