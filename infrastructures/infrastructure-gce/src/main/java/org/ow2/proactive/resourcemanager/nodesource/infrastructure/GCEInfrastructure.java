@@ -233,7 +233,7 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
         }
         // rmHostname
         parameterIndex++;
-        checkRMHostname(parameters[parameterIndex].toString());
+        parseHostnameParameter("rmHostname", parameters[parameterIndex].toString());
         // connectorIaasURL
         parameterIndex++;
         if (parameterValueIsNotSpecified(parameters[parameterIndex])) {

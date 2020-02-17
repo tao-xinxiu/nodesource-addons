@@ -27,7 +27,6 @@ package org.ow2.proactive.resourcemanager.nodesource.infrastructure;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.nio.charset.StandardCharsets;
 import java.security.KeyException;
 import java.util.*;
 import java.util.AbstractMap.SimpleImmutableEntry;
@@ -86,6 +85,35 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
 
     private boolean isCreatedInfrastructure = false;
 
+    /**
+     * The index of the infrastructure configurable parameters.
+     */
+    protected enum Indexes {
+        AWS_KEY(0),
+        AWS_SECRET_KEY(1),
+        NUMBER_OF_INSTANCES(2),
+        NUMBER_OF_NODES_PER_INSTANCE(3),
+        IMAGE(4),
+        VM_USERNAME(5),
+        VM_KEY_PAIR_NAME(6),
+        VM_PRIVATE_KEY(7),
+        RAM(8),
+        CORES(9),
+        SECURITY_GROUP_IDS(10),
+        SUBNET_ID(11),
+        RM_HOSTNAME(12),
+        CONNECTOR_IAAS_URL(13),
+        NODE_JAR_URL(14),
+        ADDITIONAL_PROPERTIES(15),
+        NODE_TIMEOUT(16);
+
+        protected int index;
+
+        Indexes(int index) {
+            this.index = index;
+        }
+    }
+
     @Configurable(description = "Your AWS access key ID (e.g., AKIAIOSFODNN7EXAMPLE)", sectionSelector = 1, important = true)
     protected String awsKey = null;
 
@@ -110,12 +138,14 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
     protected String vmKeyPairName = null;
 
     @Configurable(fileBrowser = true, description = "(optional) Your AWS private key file corresponding to 'vmKeyPairName' for accessing VM", sectionSelector = 3)
-    protected byte[] vmPrivateKey;
+    protected String vmPrivateKey;
 
-    @Configurable(description = "(optional) The minimum RAM required (in Mega Bytes) for each VM", sectionSelector = 3)
+    @Configurable(description = "(optional, default value: " + DEFAULT_RAM +
+                                ") The minimum RAM required (in Mega Bytes) for each VM", sectionSelector = 3)
     protected int ram = DEFAULT_RAM;
 
-    @Configurable(description = "(optional) The minimum number of CPU cores required for each VM", sectionSelector = 3)
+    @Configurable(description = "(optional, default value: " + DEFAULT_CORES +
+                                ") The minimum number of CPU cores required for each VM", sectionSelector = 3)
     protected int cores = DEFAULT_CORES;
 
     // TODO disable to configure the parameter spotPrice for the moment, because we don't yet have a checking mechanism for it now, but it may cause the RM portal blocked (hanging in createInstance).
@@ -140,8 +170,9 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
     @Configurable(description = "(optional) Additional Java command properties (e.g. \"-Dpropertyname=propertyvalue\")", sectionSelector = 5)
     protected String additionalProperties = "";
 
-    @Configurable(description = "The timeout for nodes to connect to RM (in ms). After this timeout expired, the node is considered to be lost.", sectionSelector = 5)
-    protected int nodeTimeout = DEFAULT_NODE_TIMEOUT;// 5 min
+    @Configurable(description = "(optional, default value: " + DEFAULT_NODE_TIMEOUT +
+                                ") The timeout for nodes to connect to RM (in ms). After this timeout expired, the node is considered to be lost.", sectionSelector = 5)
+    protected int nodeTimeout = DEFAULT_NODE_TIMEOUT;
 
     /**
      * Key to retrieve the key pair used to deploy the infrastructure
@@ -159,129 +190,39 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
     public void configure(Object... parameters) {
 
         logger.info("Validating parameters : " + Arrays.toString(parameters));
-        validate(parameters);
-
-        int parameterIndex = 0;
-        this.awsKey = parameters[parameterIndex++].toString().trim();
-        this.awsSecretKey = parameters[parameterIndex++].toString().trim();
-        this.numberOfInstances = parseIntParameter("numberOfInstances", parameters[parameterIndex++]);
-        this.numberOfNodesPerInstance = parseIntParameter("numberOfNodesPerInstance", parameters[parameterIndex++]);
-        this.image = parameters[parameterIndex++].toString().trim();
-        this.vmUsername = parameters[parameterIndex++].toString().trim();
-        this.vmKeyPairName = parameters[parameterIndex++].toString().trim();
-        this.vmPrivateKey = (byte[]) parameters[parameterIndex++];
-        this.ram = parseIntParameter("ram", parameters[parameterIndex++]);
-        this.cores = parseIntParameter("cores", parameters[parameterIndex++]);
-        //        TODO disable to configure the parameter spotPrice for the moment
-        //        this.spotPrice = parameters[parameterIndex++].toString().trim();
-        this.securityGroupIds = parameters[parameterIndex++].toString().trim();
-        this.subnetId = parameters[parameterIndex++].toString().trim();
-        this.rmHostname = parameters[parameterIndex++].toString().trim();
-        this.connectorIaasURL = parameters[parameterIndex++].toString().trim();
-        this.nodeJarURL = parameters[parameterIndex++].toString().trim();
-        this.additionalProperties = parameters[parameterIndex++].toString().trim();
-        this.nodeTimeout = parseIntParameter("nodeTimeout", parameters[parameterIndex++]);
-
-        connectorIaasController = new ConnectorIaasController(connectorIaasURL, INFRASTRUCTURE_TYPE);
-    }
-
-    private void validate(Object[] parameters) {
         if (parameters == null || parameters.length < NUMBER_OF_PARAMETERS) {
             throw new IllegalArgumentException("Invalid parameters for EC2Infrastructure creation");
         }
-        int parameterIndex = 0;
-        // awsKey
-        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
-            throw new IllegalArgumentException("AWS access key ID must be specified");
+
+        this.awsKey = parseMandatoryParameter("awsKey", parameters[Indexes.AWS_KEY.index]);
+        this.awsSecretKey = parseMandatoryParameter("awsSecretKey", parameters[Indexes.AWS_SECRET_KEY.index]);
+        this.numberOfInstances = parseIntParameter("numberOfInstances", parameters[Indexes.NUMBER_OF_INSTANCES.index]);
+        this.numberOfNodesPerInstance = parseIntParameter("numberOfNodesPerInstance",
+                                                          parameters[Indexes.NUMBER_OF_NODES_PER_INSTANCE.index]);
+        this.image = parseOptionalParameter(parameters[Indexes.IMAGE.index], DEFAULT_IMAGE);
+        if (!image.contains("/")) {
+            throw new IllegalArgumentException(String.format("Invalid image [%s] (image should be in format 'region/ami-id').",
+                                                             image));
         }
-        parameterIndex++;
-        // awsSecretKey
-        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
-            throw new IllegalArgumentException("AWS secret access key must be specified");
-        }
-        parameterIndex++;
-        // numberOfInstances
-        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
-            throw new IllegalArgumentException("The number of instances to create must be specified");
-        }
-        parameterIndex++;
-        // numberOfNodesPerInstance
-        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
-            throw new IllegalArgumentException("The number of nodes per instance to deploy must be specified");
-        }
-        parameterIndex++;
-        // image
-        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
-            parameters[parameterIndex] = DEFAULT_IMAGE;
-        }
-        if (!parameters[parameterIndex].toString().contains("/")) {
-            throw new IllegalArgumentException(String.format("Invalid image %s (image should be in format 'region/ami-id').",
-                                                             parameters[parameterIndex]));
-        }
-        parameterIndex++;
-        // vmUsername
-        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
-            parameters[parameterIndex] = DEFAULT_VM_USERNAME;
-        }
-        parameterIndex++;
-        // vmKeyPairName
-        if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex] = "";
-        }
-        parameterIndex++;
-        // vmPrivateKey
-        if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex] = "";
-        }
-        parameterIndex++;
-        // ram
-        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
-            parameters[parameterIndex] = DEFAULT_RAM;
-        }
-        parameterIndex++;
-        // cores
-        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
-            parameters[parameterIndex] = DEFAULT_CORES;
-        }
-        parameterIndex++;
+        this.vmUsername = parseOptionalParameter(parameters[Indexes.VM_USERNAME.index], DEFAULT_VM_USERNAME);
+        this.vmKeyPairName = parseOptionalParameter(parameters[Indexes.VM_KEY_PAIR_NAME.index], "");
+        this.vmPrivateKey = parseFileParameter("vmPrivateKey", parameters[Indexes.VM_PRIVATE_KEY.index]);
+        this.ram = parseIntParameter("ram", parameters[Indexes.RAM.index], DEFAULT_RAM);
+        this.cores = parseIntParameter("cores", parameters[Indexes.CORES.index], DEFAULT_CORES);
         //        TODO disable to configure the parameter spotPrice for the moment
-        //        // spotPrice
-        //        if (parameters[parameterIndex] == null) {
-        //            parameters[parameterIndex] = "";
-        //        }
-        //        parameterIndex++;
-        // securityGroupIds
-        if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex] = "";
-        }
-        parameterIndex++;
-        // subnetId
-        if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex] = "";
-        }
-        parameterIndex++;
-        // rmHostname
-        checkRMHostname(parameters[parameterIndex].toString());
-        parameterIndex++;
-        // connectorIaasURL
-        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
-            throw new IllegalArgumentException("The connector-iaas URL must be specified");
-        }
-        parameterIndex++;
-        // nodeJarURL
-        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
-            throw new IllegalArgumentException("The URL for downloading the node jar must be specified");
-        }
-        parameterIndex++;
-        // additionalProperties
-        if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex] = "";
-        }
-        parameterIndex++;
-        // nodeTimeout
-        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
-            parameters[parameterIndex] = DEFAULT_NODE_TIMEOUT;
-        }
+        //        this.spotPrice = parameters[parameterIndex++].toString().trim();
+        this.securityGroupIds = parseOptionalParameter(parameters[Indexes.SECURITY_GROUP_IDS.index], "");
+        this.subnetId = parseOptionalParameter(parameters[Indexes.SUBNET_ID.index], "");
+        this.rmHostname = parseHostnameParameter("rmHostname", parameters[Indexes.RM_HOSTNAME.index]);
+        this.connectorIaasURL = parseMandatoryParameter("connectorIaasURL",
+                                                        parameters[Indexes.CONNECTOR_IAAS_URL.index]);
+        this.nodeJarURL = parseMandatoryParameter("nodeJarURL", parameters[Indexes.NODE_JAR_URL.index]);
+        this.additionalProperties = parseOptionalParameter(parameters[Indexes.ADDITIONAL_PROPERTIES.index], "");
+        this.nodeTimeout = parseIntParameter("nodeTimeout",
+                                             parameters[Indexes.NODE_TIMEOUT.index],
+                                             DEFAULT_NODE_TIMEOUT);
+
+        connectorIaasController = new ConnectorIaasController(connectorIaasURL, INFRASTRUCTURE_TYPE);
     }
 
     @Override
@@ -445,7 +386,7 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
 
     private String createOrUseKeyPair(String infrastructureId, int nbInstances) {
         SimpleImmutableEntry<String, String> keyPairInfo;
-        if (vmPrivateKey.length == 0 || vmKeyPairName.isEmpty()) {
+        if (vmPrivateKey.isEmpty() || vmKeyPairName.isEmpty()) {
             // create a key pair in AWS
             try {
                 logger.info("Creating an AWS key pair");
@@ -462,8 +403,7 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
         } else {
             // or use the private key provided by the user
             logger.info("Using AWS key pair provided by the user");
-            keyPairInfo = new SimpleImmutableEntry<>(vmKeyPairName,
-                                                     new String(vmPrivateKey, StandardCharsets.ISO_8859_1));
+            keyPairInfo = new SimpleImmutableEntry<>(vmKeyPairName, vmPrivateKey);
         }
         persistKeyPairInfo(keyPairInfo);
 

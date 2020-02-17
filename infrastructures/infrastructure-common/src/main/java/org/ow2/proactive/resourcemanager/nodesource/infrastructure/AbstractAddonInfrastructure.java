@@ -599,12 +599,43 @@ public abstract class AbstractAddonInfrastructure extends InfrastructureManager 
                     instancesWithoutNodesMap);
     }
 
-    protected int parseIntParameter(String parameterName, Object parameter) {
+    protected String parseMandatoryParameter(String parameterName, Object parameterValue) {
+        if (parameterValueIsNotSpecified(parameterValue)) {
+            throw new IllegalArgumentException(String.format("The parameter [%s] must be specified.", parameterName));
+        }
+        return parameterValue.toString().trim();
+    }
+
+    protected String parseOptionalParameter(Object parameterValue, String defaultValue) {
+        if (parameterValueIsNotSpecified(parameterValue)) {
+            return defaultValue;
+        } else {
+            return parameterValue.toString().trim();
+        }
+    }
+
+    protected int parseIntParameter(String parameterName, Object parameterValue) {
         try {
-            return Integer.parseInt(parameter.toString().trim());
+            // When no default value specified, the parameter is mandatory and should has an Integer value.
+            return Integer.parseInt(parseMandatoryParameter(parameterName, parameterValue));
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException(String.format("Non numeric value (\"%s\") for the parameter \"%s\".",
-                                                             parameter.toString(),
+            throw new IllegalArgumentException(String.format("ERROR: The parameter [%s] should be specified with a numeric value.",
+                                                             parameterName));
+        }
+    }
+
+    protected int parseIntParameter(String parameterName, Object parameterValue, int defaultValue) {
+        String parameterStringValue = parseOptionalParameter(parameterValue, String.valueOf(defaultValue));
+        return parseIntParameter(parameterName, parameterStringValue);
+    }
+
+    protected String parseFileParameter(String parameterName, Object parameterValue) {
+        if (parameterValue instanceof byte[]) {
+            return new String((byte[]) parameterValue);
+        } else if (parameterValue == null) {
+            return "";
+        } else {
+            throw new IllegalArgumentException(String.format("ERROR: The parameter [%s] should be specified with a valid file.",
                                                              parameterName));
         }
     }
@@ -613,13 +644,13 @@ public abstract class AbstractAddonInfrastructure extends InfrastructureManager 
         return parameterValue == null || StringUtils.isBlank(parameterValue.toString());
     }
 
-    protected void checkRMHostname(String rmHostname) {
-        if (parameterValueIsNotSpecified(rmHostname)) {
-            throw new IllegalArgumentException("The resource manager hostname must be specified");
+    protected String parseHostnameParameter(String parameterName, Object parameterValue) {
+        String parameterValueString = parseMandatoryParameter(parameterName, parameterValue);
+        if (parameterValueString.contains("/")) {
+            throw new IllegalArgumentException(String.format("Invalid hostname [%s] for the parameter [%s] (hostname should not contains '/').",
+                                                             parameterValueString,
+                                                             parameterName));
         }
-        if (rmHostname.contains("/")) {
-            throw new IllegalArgumentException(String.format("Invalid hostname %s (hostname should not contains '/').",
-                                                             rmHostname));
-        }
+        return parameterValueString;
     }
 }
