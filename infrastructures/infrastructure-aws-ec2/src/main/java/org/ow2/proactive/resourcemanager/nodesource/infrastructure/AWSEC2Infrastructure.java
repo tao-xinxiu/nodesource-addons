@@ -85,9 +85,7 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
 
     private boolean isCreatedInfrastructure = false;
 
-    /**
-     * The index of the infrastructure configurable parameters.
-     */
+    // The index of the infrastructure configurable parameters.
     protected enum Indexes {
         AWS_KEY(0),
         AWS_SECRET_KEY(1),
@@ -165,7 +163,7 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
     protected String connectorIaasURL = "http://" + generateDefaultRMHostname() + ":8080/connector-iaas";
 
     @Configurable(description = "URL used to download the node jar on the VM", sectionSelector = 4, important = true)
-    protected String nodeJarURL = linuxInitScriptGenerator.generateDefaultNodeJarURL(rmHostname);
+    protected String nodeJarURL = LinuxInitScriptGenerator.generateDefaultNodeJarURL(rmHostname);
 
     @Configurable(description = "(optional) Additional Java command properties (e.g. \"-Dpropertyname=propertyvalue\")", sectionSelector = 5)
     protected String additionalProperties = "";

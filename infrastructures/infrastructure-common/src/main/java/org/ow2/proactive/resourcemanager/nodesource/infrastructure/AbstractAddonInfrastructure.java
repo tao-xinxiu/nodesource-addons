@@ -629,6 +629,10 @@ public abstract class AbstractAddonInfrastructure extends InfrastructureManager 
         return parseIntParameter(parameterName, parameterStringValue);
     }
 
+    protected String parseMandatoryFileParameter(String parameterName, Object parameterValue) {
+        return parseMandatoryParameter(parameterName, parseFileParameter(parameterName, parameterValue));
+    }
+
     protected String parseFileParameter(String parameterName, Object parameterValue) {
         if (parameterValue instanceof byte[]) {
             return new String((byte[]) parameterValue);

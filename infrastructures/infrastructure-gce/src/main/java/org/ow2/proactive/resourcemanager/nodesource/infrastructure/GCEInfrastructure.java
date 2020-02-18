@@ -36,7 +36,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.apache.log4j.Logger;
-import org.objectweb.proactive.core.ProActiveException;
 import org.objectweb.proactive.core.node.Node;
 import org.ow2.proactive.resourcemanager.exception.RMException;
 import org.ow2.proactive.resourcemanager.nodesource.common.Configurable;
@@ -99,6 +98,31 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
 
     private boolean isCreatedInfrastructure = false;
 
+    // The index of the infrastructure configurable parameters.
+    protected enum Indexes {
+        GCE_CREDENTIAL(0),
+        TOTAL_NUMBER_OF_INSTANCES(1),
+        NUMBER_OF_NODES_PER_INSTANCE(2),
+        VM_USERNAME(3),
+        VM_PUBLIC_KEY(4),
+        VM_PRIVATE_KEY(5),
+        IMAGE(6),
+        REGION(7),
+        RAM(8),
+        CORES(9),
+        RM_HOSTNAME(10),
+        CONNECTOR_IAAS_URL(11),
+        NODE_JAR_URL(12),
+        ADDITIONAL_PROPERTIES(13),
+        NODE_TIMEOUT(14);
+
+        protected int index;
+
+        Indexes(int index) {
+            this.index = index;
+        }
+    }
+
     @Configurable(fileBrowser = true, description = "The JSON key file path of your Google Cloud Platform service account", sectionSelector = 1, important = true)
     protected GCECredential gceCredential = null;
 
@@ -117,16 +141,20 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     @Configurable(fileBrowser = true, description = "(optional) The private key for accessing the virtual machine", sectionSelector = 3)
     protected String vmPrivateKey = null;
 
-    @Configurable(description = "(optional) The image of the virtual machine", sectionSelector = 3)
+    @Configurable(description = "(optional, default value: " + DEFAULT_IMAGE +
+                                ") The image of the virtual machine", sectionSelector = 3)
     protected String image = DEFAULT_IMAGE;
 
-    @Configurable(description = "(optional) The region of the virtual machine", sectionSelector = 3)
+    @Configurable(description = "(optional, default value: " + DEFAULT_REGION +
+                                ") The region of the virtual machine", sectionSelector = 3)
     protected String region = DEFAULT_REGION;
 
-    @Configurable(description = "(optional) The minimum RAM required (in Mega Bytes) for each virtual machine", sectionSelector = 3)
+    @Configurable(description = "(optional, default value: " + DEFAULT_RAM +
+                                ") The minimum RAM required (in Mega Bytes) for each virtual machine", sectionSelector = 3)
     protected int ram = DEFAULT_RAM;
 
-    @Configurable(description = "(optional) The minimum number of CPU cores required for each virtual machine", sectionSelector = 3)
+    @Configurable(description = "(optional, default value: " + DEFAULT_CORES +
+                                ") The minimum number of CPU cores required for each virtual machine", sectionSelector = 3)
     protected int cores = DEFAULT_CORES;
 
     @Configurable(description = "Resource manager hostname or ip address (must be accessible from nodes)", sectionSelector = 4, important = true)
@@ -136,12 +164,13 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     protected String connectorIaasURL = linuxInitScriptGenerator.generateDefaultIaasConnectorURL(generateDefaultRMHostname());
 
     @Configurable(description = "URL used to download the node jar on the virtual machine", sectionSelector = 4, important = true)
-    protected String nodeJarURL = linuxInitScriptGenerator.generateDefaultNodeJarURL(rmHostname);
+    protected String nodeJarURL = LinuxInitScriptGenerator.generateDefaultNodeJarURL(rmHostname);
 
     @Configurable(description = "(optional) Additional Java command properties (e.g. \"-Dpropertyname=propertyvalue\")", sectionSelector = 5)
     protected String additionalProperties = "-Dproactive.useIPaddress=true";
 
-    @Configurable(description = "Node timeout in ms. After this timeout expired, the node is considered to be lost", sectionSelector = 5)
+    @Configurable(description = "(optional, default value: " + DEFAULT_NODE_TIMEOUT +
+                                ")Node timeout in ms. After this timeout expired, the node is considered to be lost", sectionSelector = 5)
     protected int nodeTimeout = DEFAULT_NODE_TIMEOUT;
 
     private Map<String, String> meta = new HashMap<>();
@@ -154,118 +183,44 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     @Override
     public void configure(Object... parameters) {
         logger.info("Validating parameters : " + Arrays.toString(parameters));
-        validate(parameters);
+        if (parameters == null || parameters.length < NUMBER_OF_PARAMETERS) {
+            throw new IllegalArgumentException("Invalid parameters for GCEInfrastructure creation");
+        }
 
-        int parameterIndex = 0;
-
-        this.gceCredential = getCredentialFromJsonKeyFile((byte[]) parameters[parameterIndex++]);
-        this.totalNumberOfInstances = parseIntParameter("totalNumberOfInstances", parameters[parameterIndex++]);
-        this.numberOfNodesPerInstance = parseIntParameter("numberOfNodesPerInstance", parameters[parameterIndex++]);
-        this.vmUsername = parameters[parameterIndex++].toString().trim();
-        this.vmPublicKey = new String((byte[]) parameters[parameterIndex++]);
-        this.vmPrivateKey = new String((byte[]) parameters[parameterIndex++]);
-        this.image = parameters[parameterIndex++].toString().trim();
-        this.region = parameters[parameterIndex++].toString().trim();
-        this.ram = parseIntParameter("ram", parameters[parameterIndex++]);
-        this.cores = parseIntParameter("cores", parameters[parameterIndex++]);
-        this.rmHostname = parameters[parameterIndex++].toString().trim();
-        this.connectorIaasURL = parameters[parameterIndex++].toString().trim();
-        this.nodeJarURL = parameters[parameterIndex++].toString().trim();
-        this.additionalProperties = parameters[parameterIndex++].toString().trim();
-        this.nodeTimeout = parseIntParameter("nodeTimeout", parameters[parameterIndex++]);
+        this.gceCredential = getCredentialFromJsonKeyFile(parseMandatoryFileParameter("gceCredential",
+                                                                                      parameters[Indexes.GCE_CREDENTIAL.index]));
+        this.totalNumberOfInstances = parseIntParameter("totalNumberOfInstances",
+                                                        parameters[Indexes.TOTAL_NUMBER_OF_INSTANCES.index]);
+        this.numberOfNodesPerInstance = parseIntParameter("numberOfNodesPerInstance",
+                                                          parameters[Indexes.NUMBER_OF_NODES_PER_INSTANCE.index]);
+        this.vmUsername = parseOptionalParameter(parameters[Indexes.VM_USERNAME.index], "");
+        this.vmPublicKey = parseFileParameter("vmPublicKey", parameters[Indexes.VM_PUBLIC_KEY.index]);
+        this.vmPrivateKey = parseFileParameter("vmPrivateKey", parameters[Indexes.VM_PRIVATE_KEY.index]);
+        this.image = parseOptionalParameter(parameters[Indexes.IMAGE.index], DEFAULT_IMAGE);
+        this.region = parseOptionalParameter(parameters[Indexes.REGION.index], DEFAULT_REGION);
+        this.ram = parseIntParameter("ram", parameters[Indexes.RAM.index], DEFAULT_RAM);
+        this.cores = parseIntParameter("cores", parameters[Indexes.CORES.index], DEFAULT_CORES);
+        this.rmHostname = parseHostnameParameter("rmHostname", parameters[Indexes.RM_HOSTNAME.index]);
+        this.connectorIaasURL = parseMandatoryParameter("connectorIaasURL",
+                                                        parameters[Indexes.CONNECTOR_IAAS_URL.index]);
+        this.nodeJarURL = parseMandatoryParameter("nodeJarURL", parameters[Indexes.NODE_JAR_URL.index]);
+        this.additionalProperties = parseOptionalParameter(parameters[Indexes.ADDITIONAL_PROPERTIES.index], "");
+        this.nodeTimeout = parseIntParameter("nodeTimeout",
+                                             parameters[Indexes.NODE_TIMEOUT.index],
+                                             DEFAULT_NODE_TIMEOUT);
 
         connectorIaasController = new ConnectorIaasController(connectorIaasURL, INFRASTRUCTURE_TYPE);
     }
 
-    private void validate(Object[] parameters) {
-        if (parameters == null || parameters.length < NUMBER_OF_PARAMETERS) {
-            throw new IllegalArgumentException("Invalid parameters for GCEInfrastructure creation");
-        }
-        int parameterIndex = 0;
-        // gceCredential
-        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
-            throw new IllegalArgumentException("The Google Cloud Platform service account must be specified");
-        }
-        // totalNumberOfInstances
-        parameterIndex++;
-        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
-            throw new IllegalArgumentException("The number of instances to create must be specified");
-        }
-        // numberOfNodesPerInstance
-        parameterIndex++;
-        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
-            throw new IllegalArgumentException("The number of nodes per instance to deploy must be specified");
-        }
-        // vmUsername
-        parameterIndex++;
-        if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex] = "";
-        }
-        // vmPublicKey
-        parameterIndex++;
-        if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex] = "";
-        }
-        // vmPrivateKey
-        parameterIndex++;
-        if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex] = "";
-        }
-        // image
-        parameterIndex++;
-        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
-            parameters[parameterIndex] = DEFAULT_IMAGE;
-        }
-        // region
-        parameterIndex++;
-        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
-            parameters[parameterIndex] = DEFAULT_REGION;
-        }
-        // ram
-        parameterIndex++;
-        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
-            parameters[parameterIndex] = String.valueOf(DEFAULT_RAM);
-        }
-        // cores
-        parameterIndex++;
-        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
-            parameters[parameterIndex] = String.valueOf(DEFAULT_CORES);
-        }
-        // rmHostname
-        parameterIndex++;
-        parseHostnameParameter("rmHostname", parameters[parameterIndex].toString());
-        // connectorIaasURL
-        parameterIndex++;
-        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
-            throw new IllegalArgumentException("The connector-iaas URL must be specified");
-        }
-        // nodeJarURL
-        parameterIndex++;
-        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
-            throw new IllegalArgumentException("The URL for downloading the node jar must be specified");
-        }
-        // additionalProperties
-        parameterIndex++;
-        if (parameters[parameterIndex] == null) {
-            parameters[parameterIndex] = "";
-        }
-        // nodeTimeout
-        parameterIndex++;
-        if (parameterValueIsNotSpecified(parameters[parameterIndex])) {
-            parameters[parameterIndex] = String.valueOf(DEFAULT_NODE_TIMEOUT);
-        }
-    }
-
-    private GCECredential getCredentialFromJsonKeyFile(byte[] credsFile) {
+    private GCECredential getCredentialFromJsonKeyFile(String gceCreds) {
         try {
-            final JsonObject json = new JsonParser().parse(new String(credsFile)).getAsJsonObject();
+            final JsonObject json = new JsonParser().parse(gceCreds).getAsJsonObject();
             String clientEmail = json.get("client_email").toString().trim().replace("\"", "");
             String privateKey = json.get("private_key").toString().replace("\"", "").replace("\\n", "\n");
             return new GCECredential(clientEmail, privateKey);
         } catch (Exception e) {
             logger.error(e);
-            throw new IllegalArgumentException("Can't reading the GCE service account JSON key file: " +
-                                               new String(credsFile));
+            throw new IllegalArgumentException("Can't parse the GCE service account JSON key file: " + gceCreds);
         }
     }
 
