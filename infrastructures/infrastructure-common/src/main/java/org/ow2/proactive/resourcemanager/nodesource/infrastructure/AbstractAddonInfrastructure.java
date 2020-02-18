@@ -614,6 +614,21 @@ public abstract class AbstractAddonInfrastructure extends InfrastructureManager 
         }
     }
 
+    protected long parseLongParameter(String parameterName, Object parameterValue) {
+        try {
+            // When no default value specified, the parameter is mandatory and should has an Long value.
+            return Long.parseLong(parseMandatoryParameter(parameterName, parameterValue));
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(String.format("ERROR: The parameter [%s] should be specified with a numeric value.",
+                                                             parameterName));
+        }
+    }
+
+    protected long parseLongParameter(String parameterName, Object parameterValue, long defaultValue) {
+        String parameterStringValue = parseOptionalParameter(parameterValue, String.valueOf(defaultValue));
+        return parseLongParameter(parameterName, parameterStringValue);
+    }
+
     protected int parseIntParameter(String parameterName, Object parameterValue) {
         try {
             // When no default value specified, the parameter is mandatory and should has an Integer value.
