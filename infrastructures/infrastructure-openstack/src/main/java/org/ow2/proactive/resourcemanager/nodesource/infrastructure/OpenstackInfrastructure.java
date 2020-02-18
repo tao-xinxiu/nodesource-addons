@@ -25,8 +25,6 @@
  */
 package org.ow2.proactive.resourcemanager.nodesource.infrastructure;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.security.KeyException;
 import java.util.*;
 import java.util.concurrent.*;
@@ -114,13 +112,13 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
     protected int numberOfNodesPerInstance = 1;
 
     @Configurable(description = "Connector-iaas URL", sectionSelector = 4, important = true)
-    protected String connectorIaasURL = linuxInitScriptGenerator.generateDefaultIaasConnectorURL(generateDefaultRMHostname());
+    protected String connectorIaasURL = LinuxInitScriptGenerator.generateDefaultIaasConnectorURL(generateDefaultRMHostname());
 
     @Configurable(description = "Resource Manager hostname or ip address", sectionSelector = 4, important = true)
     protected String rmHostname = generateDefaultRMHostname();
 
     @Configurable(description = "URL used to download the node jar on the instance", sectionSelector = 5, important = true)
-    protected String nodeJarURL = linuxInitScriptGenerator.generateDefaultNodeJarURL(rmHostname);
+    protected String nodeJarURL = LinuxInitScriptGenerator.generateDefaultNodeJarURL(generateDefaultRMHostname());
 
     @Configurable(description = "(optional) Additional Java command properties (e.g. \"-Dpropertyname=propertyvalue\")", sectionSelector = 5)
     protected String additionalProperties = "-Dproactive.useIPaddress=true";
@@ -298,16 +296,6 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
     @Override
     public String toString() {
         return getDescription();
-    }
-
-    private String generateDefaultRMHostname() {
-        try {
-            // best effort, may not work for all machines
-            return InetAddress.getLocalHost().getCanonicalHostName();
-        } catch (UnknownHostException e) {
-            logger.warn(e);
-            return "localhost";
-        }
     }
 
     @Override

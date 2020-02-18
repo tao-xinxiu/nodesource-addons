@@ -160,10 +160,10 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
     protected String rmHostname = generateDefaultRMHostname();
 
     @Configurable(description = "Connector-iaas URL", sectionSelector = 4, important = true)
-    protected String connectorIaasURL = "http://" + generateDefaultRMHostname() + ":8080/connector-iaas";
+    protected String connectorIaasURL = LinuxInitScriptGenerator.generateDefaultIaasConnectorURL(generateDefaultRMHostname());
 
     @Configurable(description = "URL used to download the node jar on the VM", sectionSelector = 4, important = true)
-    protected String nodeJarURL = LinuxInitScriptGenerator.generateDefaultNodeJarURL(rmHostname);
+    protected String nodeJarURL = LinuxInitScriptGenerator.generateDefaultNodeJarURL(generateDefaultRMHostname());
 
     @Configurable(description = "(optional) Additional Java command properties (e.g. \"-Dpropertyname=propertyvalue\")", sectionSelector = 5)
     protected String additionalProperties = "";
@@ -545,16 +545,6 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
     @Override
     public String toString() {
         return getDescription();
-    }
-
-    private String generateDefaultRMHostname() {
-        try {
-            // best effort, may not work for all machines
-            return InetAddress.getLocalHost().getCanonicalHostName();
-        } catch (UnknownHostException e) {
-            logger.warn(e);
-            return "localhost";
-        }
     }
 
     private void persistKeyPairInfo(final SimpleImmutableEntry<String, String> keyPair) {

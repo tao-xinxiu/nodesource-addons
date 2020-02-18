@@ -25,6 +25,8 @@
  */
 package org.ow2.proactive.resourcemanager.nodesource.infrastructure;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.security.KeyException;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -597,6 +599,16 @@ public abstract class AbstractAddonInfrastructure extends InfrastructureManager 
         logger.info(action + " - node sets are now: nodes per instance=" + nodesPerInstance +
                     ", number of removed nodes per instance=" + nbRemovedNodesPerInstance + ", free instances map=" +
                     instancesWithoutNodesMap);
+    }
+
+    protected String generateDefaultRMHostname() {
+        try {
+            // best effort, may not work for all machines
+            return InetAddress.getLocalHost().getCanonicalHostName();
+        } catch (UnknownHostException e) {
+            logger.warn(e);
+            return "localhost";
+        }
     }
 
     protected String parseMandatoryParameter(String parameterName, Object parameterValue) {

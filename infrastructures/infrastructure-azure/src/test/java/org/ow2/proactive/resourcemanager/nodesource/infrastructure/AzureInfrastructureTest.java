@@ -101,8 +101,8 @@ public class AzureInfrastructureTest {
         assertThat(azureInfrastructure.managementEndpoint, is(nullValue()));
         assertThat(azureInfrastructure.resourceManagerEndpoint, is(nullValue()));
         assertThat(azureInfrastructure.graphEndpoint, is(nullValue()));
-        assertThat(azureInfrastructure.rmHttpUrl, is(not(nullValue())));
-        assertThat(azureInfrastructure.connectorIaasURL, is(azureInfrastructure.rmHttpUrl + "/connector-iaas"));
+        assertThat(azureInfrastructure.rmHostname, is(not(nullValue())));
+        assertThat(azureInfrastructure.connectorIaasURL, is(not(nullValue())));
         assertThat(azureInfrastructure.image, is(nullValue()));
         assertTrue(azureInfrastructure.imageOSType.equals("linux"));
         assertThat(azureInfrastructure.vmSizeType, is(nullValue()));
@@ -113,7 +113,7 @@ public class AzureInfrastructureTest {
         assertThat(azureInfrastructure.region, is(nullValue()));
         assertThat(azureInfrastructure.numberOfInstances, is(1));
         assertThat(azureInfrastructure.numberOfNodesPerInstance, is(1));
-        assertThat(azureInfrastructure.downloadCommand, is(nullValue()));
+        assertThat(azureInfrastructure.nodeJarURL, is(not(nullValue())));
         assertThat(azureInfrastructure.privateNetworkCIDR, is(nullValue()));
         assertThat(azureInfrastructure.staticPublicIP, is(true));
         assertThat(azureInfrastructure.additionalProperties,
@@ -134,7 +134,7 @@ public class AzureInfrastructureTest {
                                           "managementEndpoint",
                                           "resourceManagerEndpoint",
                                           "graphEndpoint",
-                                          "http://test.activeeon.com:8080",
+                                          "test.activeeon.com",
                                           "http://localhost:8088/connector-iaas",
                                           "image",
                                           "linux",
@@ -146,7 +146,7 @@ public class AzureInfrastructureTest {
                                           "region",
                                           "2",
                                           "3",
-                                          "wget -nv test.activeeon.com/rest/node.jar",
+                                          "test.activeeon.com/rest/node.jar",
                                           "192.168.1.0/24",
                                           true,
                                           "-Dnew=value",
@@ -185,7 +185,7 @@ public class AzureInfrastructureTest {
                                       "managementEndpoint",
                                       "resourceManagerEndpoint",
                                       "graphEndpoint",
-                                      "http://test.activeeon.com:8080",
+                                      "test.activeeon.com",
                                       "http://localhost:8088/connector-iaas",
                                       null,
                                       "linux",
@@ -197,7 +197,7 @@ public class AzureInfrastructureTest {
                                       "region",
                                       "2",
                                       "3",
-                                      "wget -nv test.activeeon.com/rest/node.jar",
+                                      "test.activeeon.com/rest/node.jar",
                                       "192.168.1.0/24",
                                       true,
                                       "-Dnew=value",
@@ -224,7 +224,7 @@ public class AzureInfrastructureTest {
                                       "managementEndpoint",
                                       "resourceManagerEndpoint",
                                       "graphEndpoint",
-                                      "http://test.activeeon.com:8080",
+                                      "test.activeeon.com",
                                       "http://localhost:8088/connector-iaas",
                                       "image",
                                       "windows",
@@ -236,7 +236,7 @@ public class AzureInfrastructureTest {
                                       "region",
                                       "2",
                                       "3",
-                                      null,
+                                      "http://localhost:8088/rest/node.jar",
                                       "192.168.1.0/24",
                                       true,
                                       "-Dnew=value",

@@ -114,7 +114,7 @@ public class LinuxInitScriptGenerator {
         return "nohup " + javaCommand + javaProperties + "  &";
     }
 
-    public String generateDefaultIaasConnectorURL(String DefaultRMHostname) {
+    public static String generateDefaultIaasConnectorURL(String DefaultRMHostname) {
         // I return the requested value while taking into account the configuration parameters
         return nsConfig.getString(NSProperties.DEFAULT_PREFIX_CONNECTOR_IAAS_URL) + DefaultRMHostname +
                nsConfig.getString(NSProperties.DEFAULT_SUFFIX_CONNECTOR_IAAS_URL);

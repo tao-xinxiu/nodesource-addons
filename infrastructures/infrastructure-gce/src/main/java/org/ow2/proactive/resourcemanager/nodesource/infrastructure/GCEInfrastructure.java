@@ -161,10 +161,10 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     protected String rmHostname = generateDefaultRMHostname();
 
     @Configurable(description = "Connector-iaas URL", sectionSelector = 4, important = true)
-    protected String connectorIaasURL = linuxInitScriptGenerator.generateDefaultIaasConnectorURL(generateDefaultRMHostname());
+    protected String connectorIaasURL = LinuxInitScriptGenerator.generateDefaultIaasConnectorURL(generateDefaultRMHostname());
 
     @Configurable(description = "URL used to download the node jar on the virtual machine", sectionSelector = 4, important = true)
-    protected String nodeJarURL = LinuxInitScriptGenerator.generateDefaultNodeJarURL(rmHostname);
+    protected String nodeJarURL = LinuxInitScriptGenerator.generateDefaultNodeJarURL(generateDefaultRMHostname());
 
     @Configurable(description = "(optional) Additional Java command properties (e.g. \"-Dpropertyname=propertyvalue\")", sectionSelector = 5)
     protected String additionalProperties = "-Dproactive.useIPaddress=true";
@@ -433,15 +433,6 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
     @Override
     public String toString() {
         return getDescription();
-    }
-
-    private String generateDefaultRMHostname() {
-        try {
-            return InetAddress.getLocalHost().getCanonicalHostName();
-        } catch (UnknownHostException e) {
-            logger.warn(e);
-            return "localhost";
-        }
     }
 
     @SuppressWarnings("unchecked")
