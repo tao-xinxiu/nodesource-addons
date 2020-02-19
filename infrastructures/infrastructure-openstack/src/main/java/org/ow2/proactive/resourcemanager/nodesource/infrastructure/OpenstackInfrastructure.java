@@ -25,8 +25,6 @@
  */
 package org.ow2.proactive.resourcemanager.nodesource.infrastructure;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.security.KeyException;
 import java.util.*;
 import java.util.concurrent.*;
@@ -63,6 +61,8 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
 
     public static final String INFRASTRUCTURE_TYPE = "openstack-nova";
 
+    private static final long DEFAULT_NODES_INIT_DELAY = 4 * 60 * 1000;// 4 min
+
     private final transient Lock acquireLock = new ReentrantLock();
 
     private boolean isInitializedAndCreated = false;
@@ -93,7 +93,7 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
     @Configurable(description = "Openstack region", sectionSelector = 1, important = true)
     protected String region = null;
 
-    @Configurable(description = "Openstack identity version", sectionSelector = 1)
+    @Configurable(description = "Openstack identity version", sectionSelector = 1, important = true)
     protected String identityVersion = null;
 
     @Configurable(description = "Openstack image", sectionSelector = 3, important = true)
@@ -102,7 +102,7 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
     @Configurable(description = "Flavor type of OpenStack", sectionSelector = 3, important = true)
     protected String flavor = null;
 
-    @Configurable(description = "Public key name for Openstack instance", sectionSelector = 3)
+    @Configurable(description = "(optional) Public key name for Openstack instance", sectionSelector = 3)
     protected String publicKeyName = null;
 
     @Configurable(description = "Total (max) number of instances to create", sectionSelector = 2, important = true)
@@ -112,19 +112,48 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
     protected int numberOfNodesPerInstance = 1;
 
     @Configurable(description = "Connector-iaas URL", sectionSelector = 4, important = true)
-    protected String connectorIaasURL = linuxInitScriptGenerator.generateDefaultIaasConnectorURL(generateDefaultRMHostname());
+    protected String connectorIaasURL = LinuxInitScriptGenerator.generateDefaultIaasConnectorURL(generateDefaultRMHostname());
 
     @Configurable(description = "Resource Manager hostname or ip address", sectionSelector = 4, important = true)
     protected String rmHostname = generateDefaultRMHostname();
 
-    @Configurable(description = "Command used to download the node jar", sectionSelector = 5, important = true)
-    protected String downloadCommand = linuxInitScriptGenerator.generateDefaultDownloadCommand(rmHostname);
+    @Configurable(description = "URL used to download the node jar on the instance", sectionSelector = 5, important = true)
+    protected String nodeJarURL = LinuxInitScriptGenerator.generateDefaultNodeJarURL(generateDefaultRMHostname());
 
-    @Configurable(description = "Additional Java command properties (e.g. \"-Dpropertyname=propertyvalue\")", sectionSelector = 5)
+    @Configurable(description = "(optional) Additional Java command properties (e.g. \"-Dpropertyname=propertyvalue\")", sectionSelector = 5)
     protected String additionalProperties = "-Dproactive.useIPaddress=true";
 
-    @Configurable(description = "Estimated startup time of the nodes (including the startup time of VMs)", sectionSelector = 5)
-    protected long nodesInitDelay = 240000;
+    @Configurable(description = "(optional, default value: " + DEFAULT_NODES_INIT_DELAY +
+                                ") Estimated startup time of the nodes (including the startup time of VMs)", sectionSelector = 5)
+    protected long nodesInitDelay = DEFAULT_NODES_INIT_DELAY;
+
+    // The index of the infrastructure configurable parameters.
+    protected enum Indexes {
+        USERNAME(0),
+        PASSWORD(1),
+        DOMAIN(2),
+        ENDPOINT(3),
+        SCOPE_PREFIX(4),
+        SCOPE_VALUE(5),
+        REGION(6),
+        IDENTITY_VERSION(7),
+        IMAGE(8),
+        FLAVOR(9),
+        PUBLIC_KEY_NAME(10),
+        NUMBER_OF_INSTANCES(11),
+        NUMBER_OF_NODES_PER_INSTANCE(12),
+        CONNECTOR_IAAS_URL(13),
+        RM_HOSTNAME(14),
+        NODE_JAR_URL(15),
+        ADDITIONAL_PROPERTIES(16),
+        NODES_INIT_DELAY(17);
+
+        protected int index;
+
+        Indexes(int index) {
+            this.index = index;
+        }
+    }
 
     /**
      * Dynamic policy parameters
@@ -160,87 +189,34 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
     public void configure(Object... parameters) {
 
         logger.info("Validating parameters : " + java.util.Arrays.toString(parameters));
-        validate(parameters);
-
-        this.username = parameters[0].toString().trim();
-        this.password = parameters[1].toString().trim();
-        this.domain = parameters[2].toString().trim();
-        this.endpoint = parameters[3].toString().trim();
-        this.scopePrefix = parameters[4].toString().trim();
-        this.scopeValue = parameters[5].toString().trim();
-        this.region = parameters[6].toString().trim();
-        this.identityVersion = parameters[7].toString().trim();
-        this.image = parameters[8].toString().trim();
-        this.flavor = parameters[9].toString().trim();
-        this.publicKeyName = parameters[10].toString().trim();
-        this.numberOfInstances = Integer.parseInt(parameters[11].toString().trim());
-        this.numberOfNodesPerInstance = Integer.parseInt(parameters[12].toString().trim());
-        this.connectorIaasURL = parameters[13].toString().trim();
-        this.rmHostname = parameters[14].toString().trim();
-        this.downloadCommand = parameters[15].toString().trim();
-        this.additionalProperties = parameters[16].toString().trim();
-        this.nodesInitDelay = Long.parseLong(parameters[17].toString().trim());
-
-        connectorIaasController = new ConnectorIaasController(connectorIaasURL, INFRASTRUCTURE_TYPE);
-    }
-
-    private void validate(Object[] parameters) {
-
         if (parameters == null || parameters.length < NUMBER_OF_PARAMETERS) {
             throw new IllegalArgumentException("Invalid parameters for Openstack Infrastructure creation");
         }
 
-        if (parameters[0] == null) {
-            throw new IllegalArgumentException("Openstack username must be specified");
-        }
+        this.username = parseMandatoryParameter("username", parameters[Indexes.USERNAME.index]);
+        this.password = parseMandatoryParameter("password", parameters[Indexes.PASSWORD.index]);
+        this.domain = parseMandatoryParameter("domain", parameters[Indexes.DOMAIN.index]);
+        this.endpoint = parseMandatoryParameter("endpoint", parameters[Indexes.ENDPOINT.index]);
+        this.scopePrefix = parseMandatoryParameter("scopePrefix", parameters[Indexes.SCOPE_PREFIX.index]);
+        this.scopeValue = parseMandatoryParameter("scopeValue", parameters[Indexes.SCOPE_VALUE.index]);
+        this.region = parseMandatoryParameter("region", parameters[Indexes.REGION.index]);
+        this.identityVersion = parseMandatoryParameter("identityVersion", parameters[Indexes.IDENTITY_VERSION.index]);
+        this.image = parseMandatoryParameter("image", parameters[Indexes.IMAGE.index]);
+        this.flavor = parseMandatoryParameter("flavor", parameters[Indexes.FLAVOR.index]);
+        this.publicKeyName = parseOptionalParameter(parameters[Indexes.PUBLIC_KEY_NAME.index], "");
+        this.numberOfInstances = parseIntParameter("numberOfInstances", parameters[Indexes.NUMBER_OF_INSTANCES.index]);
+        this.numberOfNodesPerInstance = parseIntParameter("numberOfNodesPerInstance",
+                                                          parameters[Indexes.NUMBER_OF_NODES_PER_INSTANCE.index]);
+        this.connectorIaasURL = parseMandatoryParameter("connectorIaasURL",
+                                                        parameters[Indexes.CONNECTOR_IAAS_URL.index]);
+        this.rmHostname = parseMandatoryParameter("rmHostname", parameters[Indexes.RM_HOSTNAME.index]);
+        this.nodeJarURL = parseMandatoryParameter("nodeJarURL", parameters[Indexes.NODE_JAR_URL.index]);
+        this.additionalProperties = parseOptionalParameter(parameters[Indexes.ADDITIONAL_PROPERTIES.index], "");
+        this.nodesInitDelay = parseLongParameter("nodesInitDelay",
+                                                 parameters[Indexes.NODES_INIT_DELAY.index],
+                                                 DEFAULT_NODES_INIT_DELAY);
 
-        if (parameters[1] == null) {
-            throw new IllegalArgumentException("Openstack password must be specified");
-        }
-
-        if (parameters[2] == null) {
-            throw new IllegalArgumentException("Openstack user domain must be specified");
-        }
-
-        if (parameters[3] == null) {
-            throw new IllegalArgumentException("Openstack endpoint must be specified");
-        }
-
-        if (parameters[6] == null) {
-            throw new IllegalArgumentException("Openstack region must be specified");
-        }
-
-        if (parameters[8] == null) {
-            throw new IllegalArgumentException("Openstack image id must be specified");
-        }
-
-        if (parameters[9] == null) {
-            throw new IllegalArgumentException("Openstack flavor must be specified");
-        }
-
-        if (parameters[11] == null) {
-            throw new IllegalArgumentException("The number of instances to create must be specified");
-        }
-
-        if (parameters[12] == null) {
-            throw new IllegalArgumentException("The number of nodes per instance to deploy must be specified");
-        }
-
-        if (parameters[13] == null) {
-            throw new IllegalArgumentException("The connector-iaas URL must be specified");
-        }
-
-        if (parameters[14] == null) {
-            throw new IllegalArgumentException("RM host (hostname or IP address) must be specified");
-        }
-
-        if (parameters[15] == null) {
-            throw new IllegalArgumentException("The command to download 'node.jar' must be specified");
-        }
-
-        if (parameters[16] == null) {
-            throw new IllegalArgumentException("Additional properties to run ProActive node must be specified");
-        }
+        connectorIaasController = new ConnectorIaasController(connectorIaasURL, INFRASTRUCTURE_TYPE);
     }
 
     @Override
@@ -320,16 +296,6 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
     @Override
     public String toString() {
         return getDescription();
-    }
-
-    private String generateDefaultRMHostname() {
-        try {
-            // best effort, may not work for all machines
-            return InetAddress.getLocalHost().getCanonicalHostName();
-        } catch (UnknownHostException e) {
-            logger.warn(e);
-            return "localhost";
-        }
     }
 
     @Override
@@ -547,6 +513,7 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
             return linuxInitScriptGenerator.buildScript(instanceTag,
                                                         getRmUrl(),
                                                         rmHostname,
+                                                        nodeJarURL,
                                                         instanceIdNodeProperty,
                                                         additionalProperties,
                                                         nodeSource.getName(),

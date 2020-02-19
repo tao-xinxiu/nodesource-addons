@@ -280,16 +280,6 @@ public class VMWareInfrastructure extends AbstractAddonInfrastructure {
         return getDescription();
     }
 
-    private String generateDefaultRMHostname() {
-        try {
-            // best effort, may not work for all machines
-            return InetAddress.getLocalHost().getCanonicalHostName();
-        } catch (UnknownHostException e) {
-            logger.warn(e);
-            return "localhost";
-        }
-    }
-
     private String generateDefaultDownloadCommand() {
         if (System.getProperty("os.name").contains("Windows")) {
             return "powershell -command \"& { (New-Object Net.WebClient).DownloadFile('http://" + this.rmHostname +

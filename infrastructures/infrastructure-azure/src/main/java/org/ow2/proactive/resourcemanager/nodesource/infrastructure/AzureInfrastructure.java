@@ -30,7 +30,6 @@ import static org.ow2.proactive.resourcemanager.nodesource.infrastructure.Additi
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.URL;
 import java.net.UnknownHostException;
 import java.security.KeyException;
 import java.time.LocalDateTime;
@@ -95,7 +94,7 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
 
     private final static int GRAPH_ENDPOINT_INDEX = 7;
 
-    private final static int RM_HTTP_URL_INDEX = 8;
+    private final static int RM_HOSTNAME_INDEX = 8;
 
     private final static int CONNECTOR_IAAS_URL_INDEX = 9;
 
@@ -119,7 +118,7 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
 
     private final static int NUMBER_OF_NODES_PER_INSTANCE_INDEX = 19;
 
-    private final static int DOWNLOAD_COMMAND_INDEX = 20;
+    private final static int NODE_JAR_URL_INDEX = 20;
 
     private final static int PRIVATE_NETWORK_CIDR_INDEX = 21;
 
@@ -204,11 +203,11 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
     @Configurable(description = "Optional graph endpoint from specific Azure environment", sectionSelector = 2)
     protected String graphEndpoint = null;
 
-    @Configurable(description = "Resource manager HTTP URL (must be accessible from nodes)", sectionSelector = 3, important = true)
-    protected String rmHttpUrl = generateDefaultHttpRMUrl();
+    @Configurable(description = "Resource manager hostname or ip address (must be accessible from nodes)", sectionSelector = 3, important = true)
+    protected String rmHostname = generateDefaultRMHostname();
 
     @Configurable(description = "Connector-iaas URL", sectionSelector = 3, important = true)
-    protected String connectorIaasURL = generateDefaultHttpRMUrl() + "/connector-iaas";
+    protected String connectorIaasURL = LinuxInitScriptGenerator.generateDefaultIaasConnectorURL(generateDefaultRMHostname());
 
     @Configurable(description = "Image (name or key)", sectionSelector = 5, important = true)
     protected String image = null;
@@ -240,8 +239,12 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
     @Configurable(description = "Total nodes to create per instance", sectionSelector = 4, important = true)
     protected int numberOfNodesPerInstance = 1;
 
-    @Configurable(description = "Command used to download the worker jar (a default command will be generated for the specified image OS type)", sectionSelector = 7)
+    //    @Configurable(description = "Command used to download the worker jar (a default command will be generated for the specified image OS type)", sectionSelector = 7)
+    // The variable is not longer effectively used, but it's kept temporarily to facilitate future support of deploying nodes on windows os VM
     protected String downloadCommand = null;
+
+    @Configurable(description = "URL used to download the node jar on the VM", sectionSelector = 7, important = true)
+    protected String nodeJarURL = LinuxInitScriptGenerator.generateDefaultNodeJarURL(generateDefaultRMHostname());
 
     @Configurable(description = "Optional network CIDR to attach with new VM(s) (by default: '10.0.0.0/24')", sectionSelector = 6)
     protected String privateNetworkCIDR = null;
@@ -284,7 +287,7 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
         this.managementEndpoint = getParameter(parameters, MANAGEMENT_ENDPOINT_INDEX);
         this.resourceManagerEndpoint = getParameter(parameters, RESOURCE_MANAGER_ENDPOINT_INDEX);
         this.graphEndpoint = getParameter(parameters, GRAPH_ENDPOINT_INDEX);
-        this.rmHttpUrl = getParameter(parameters, RM_HTTP_URL_INDEX);
+        this.rmHostname = getParameter(parameters, RM_HOSTNAME_INDEX);
         this.connectorIaasURL = getParameter(parameters, CONNECTOR_IAAS_URL_INDEX);
         this.image = getParameter(parameters, IMAGE_INDEX);
         this.imageOSType = getParameter(parameters, IMAGE_OS_TYPE_INDEX).toLowerCase();
@@ -296,7 +299,7 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
         this.region = getParameter(parameters, REGION_INDEX);
         this.numberOfInstances = Integer.parseInt(getParameter(parameters, NUMBER_OF_INSTANCES_INDEX));
         this.numberOfNodesPerInstance = Integer.parseInt(getParameter(parameters, NUMBER_OF_NODES_PER_INSTANCE_INDEX));
-        this.downloadCommand = getParameter(parameters, DOWNLOAD_COMMAND_INDEX);
+        this.nodeJarURL = getParameter(parameters, NODE_JAR_URL_INDEX);
         this.privateNetworkCIDR = getParameter(parameters, PRIVATE_NETWORK_CIDR_INDEX);
         this.staticPublicIP = Boolean.parseBoolean(getParameter(parameters, STATIC_PUBLIC_IP_INDEX));
         this.additionalProperties = getParameter(parameters, ADDITIONAL_PROPERTIES_INDEX);
@@ -323,8 +326,8 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
         throwIllegalArgumentExceptionIfNull(parameters[CLIENT_ID_INDEX], "Azure clientId must be specified");
         throwIllegalArgumentExceptionIfNull(parameters[SECRET_INDEX], "Azure secret key must be specified");
         throwIllegalArgumentExceptionIfNull(parameters[DOMAIN_INDEX], "Azure domain or tenantId must be specified");
-        throwIllegalArgumentExceptionIfNull(parameters[RM_HTTP_URL_INDEX],
-                                            "The Resource manager HTTP URL must be specified");
+        throwIllegalArgumentExceptionIfNull(parameters[RM_HOSTNAME_INDEX],
+                                            "The Resource manager hostname must be specified");
         throwIllegalArgumentExceptionIfNull(parameters[CONNECTOR_IAAS_URL_INDEX],
                                             "The connector-iaas URL must be specified");
         throwIllegalArgumentExceptionIfNull(parameters[IMAGE_INDEX], "The image id must be specified");
@@ -341,10 +344,13 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
                                             "The number of instances to create must be specified");
         throwIllegalArgumentExceptionIfNull(parameters[NUMBER_OF_NODES_PER_INSTANCE_INDEX],
                                             "The number of nodes per instance to deploy must be specified");
-        if (parameters[DOWNLOAD_COMMAND_INDEX] == null || getParameter(parameters, DOWNLOAD_COMMAND_INDEX).isEmpty()) {
-            parameters[DOWNLOAD_COMMAND_INDEX] = generateDefaultDownloadCommand((String) parameters[IMAGE_OS_TYPE_INDEX],
-                                                                                (String) parameters[RM_HTTP_URL_INDEX]);
-        }
+        // The variable downloadCommand is not longer effectively used, but it's kept temporarily to facilitate future support of deploying nodes on windows os VM
+        //        if (parameters[DOWNLOAD_COMMAND_INDEX] == null || getParameter(parameters, DOWNLOAD_COMMAND_INDEX).isEmpty()) {
+        //            parameters[DOWNLOAD_COMMAND_INDEX] = generateDefaultDownloadCommand((String) parameters[IMAGE_OS_TYPE_INDEX],
+        //                                                                                (String) parameters[RM_HTTP_URL_INDEX]);
+        //        }
+        throwIllegalArgumentExceptionIfNull(parameters[NODE_JAR_URL_INDEX],
+                                            "URL used to download the node jar must be specified");
         if (parameters[ADDITIONAL_PROPERTIES_INDEX] == null) {
             parameters[ADDITIONAL_PROPERTIES_INDEX] = "";
         }
@@ -532,7 +538,8 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
             try {
                 List<String> scripts = linuxInitScriptGenerator.buildScript(currentInstanceId,
                                                                             getRmUrl(),
-                                                                            rmHttpUrl,
+                                                                            rmHostname,
+                                                                            nodeJarURL,
                                                                             instanceIdNodeProperty,
                                                                             additionalProperties,
                                                                             nodeSource.getName(),
@@ -657,7 +664,6 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
 
     private String generateStartNodeCommand(String instanceId) {
         try {
-            String rmHostname = new URL(rmHttpUrl).getHost();
             return START_NODE_CMD.replace(RM_HTTP_URL_PATTERN, rmHostname)
                                  .replace(INSTANCE_ID_PATTERN, instanceId)
                                  .replace(ADDITIONAL_PROPERTIES_PATTERN, additionalProperties)
