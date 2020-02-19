@@ -344,6 +344,7 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
                                             "The number of instances to create must be specified");
         throwIllegalArgumentExceptionIfNull(parameters[NUMBER_OF_NODES_PER_INSTANCE_INDEX],
                                             "The number of nodes per instance to deploy must be specified");
+        // The variable downloadCommand is not longer effectively used, but it's kept temporarily to facilitate future support of deploying nodes on windows os VM
         //        if (parameters[DOWNLOAD_COMMAND_INDEX] == null || getParameter(parameters, DOWNLOAD_COMMAND_INDEX).isEmpty()) {
         //            parameters[DOWNLOAD_COMMAND_INDEX] = generateDefaultDownloadCommand((String) parameters[IMAGE_OS_TYPE_INDEX],
         //                                                                                (String) parameters[RM_HTTP_URL_INDEX]);
