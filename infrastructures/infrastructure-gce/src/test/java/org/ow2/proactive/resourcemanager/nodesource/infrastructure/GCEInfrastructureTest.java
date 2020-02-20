@@ -153,7 +153,7 @@ public class GCEInfrastructureTest {
         assertThat(gceInfrastructure.rmHostname, is(not(nullValue())));
         assertThat(gceInfrastructure.connectorIaasURL,
                    is("http://" + gceInfrastructure.rmHostname + ":8080/connector-iaas"));
-        assertThat(gceInfrastructure.nodeJarURL, is(gceInfrastructure.rmHostname + ":8080/rest/node.jar"));
+        assertThat(gceInfrastructure.nodeJarURL, is("http://" + gceInfrastructure.rmHostname + ":8080/rest/node.jar"));
         assertThat(gceInfrastructure.additionalProperties, is(not(nullValue())));
         assertThat(gceInfrastructure.image, is(not(nullValue())));
         assertThat(gceInfrastructure.region, is(not(nullValue())));

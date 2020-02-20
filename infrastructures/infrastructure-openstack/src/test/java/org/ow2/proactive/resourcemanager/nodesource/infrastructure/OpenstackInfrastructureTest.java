@@ -102,7 +102,8 @@ public class OpenstackInfrastructureTest {
         assertThat(openstackInfrastructure.image, is(nullValue()));
         assertThat(openstackInfrastructure.numberOfInstances, is(1));
         assertThat(openstackInfrastructure.numberOfNodesPerInstance, is(1));
-        assertThat(openstackInfrastructure.nodeJarURL, is(openstackInfrastructure.rmHostname + ":8080/rest/node.jar"));
+        assertThat(openstackInfrastructure.nodeJarURL,
+                   is("http://" + openstackInfrastructure.rmHostname + ":8080/rest/node.jar"));
         assertThat(openstackInfrastructure.additionalProperties, is("-Dproactive.useIPaddress=true"));
 
     }

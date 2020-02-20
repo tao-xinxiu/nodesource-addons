@@ -149,7 +149,8 @@ public class AWSEC2InfrastructureTest {
         assertThat(awsec2Infrastructure.rmHostname, is(not(nullValue())));
         assertThat(awsec2Infrastructure.connectorIaasURL,
                    is("http://" + awsec2Infrastructure.rmHostname + ":8080/connector-iaas"));
-        assertThat(awsec2Infrastructure.nodeJarURL, is(awsec2Infrastructure.rmHostname + ":8080/rest/node.jar"));
+        assertThat(awsec2Infrastructure.nodeJarURL,
+                   is("http://" + awsec2Infrastructure.rmHostname + ":8080/rest/node.jar"));
         assertThat(awsec2Infrastructure.additionalProperties, is(""));
     }
 

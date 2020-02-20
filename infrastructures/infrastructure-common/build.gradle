@@ -20,9 +20,15 @@ dependencies {
     compile 'org.json:json:20151123'
 
     compile "org.ow2.proactive:rm-server:${rmVersion}"
+    compile "org.ow2.proactive:common-http:${rmVersion}"
     compile "org.objectweb.proactive:programming-core:${programmingVersion}"
 
     testCompile 'junit:junit:4.12'
     testCompile 'org.hamcrest:hamcrest-junit:2.0.0.0'
     testCompile 'org.mockito:mockito-core:1.10.19'
+}
+
+configurations {
+    runtime.exclude module: "commons-logging"
+    runtime.exclude group: "log4j"
 }
