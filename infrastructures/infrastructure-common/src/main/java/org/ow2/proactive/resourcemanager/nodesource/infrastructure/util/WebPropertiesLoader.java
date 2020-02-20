@@ -28,6 +28,8 @@ package org.ow2.proactive.resourcemanager.nodesource.infrastructure.util;
 import org.ow2.proactive.resourcemanager.core.properties.PAResourceManagerProperties;
 import org.ow2.proactive.web.WebProperties;
 
+import lombok.Getter;
+
 
 /**
  * @author ActiveEon Team
@@ -35,19 +37,19 @@ import org.ow2.proactive.web.WebProperties;
  */
 public class WebPropertiesLoader {
 
-    private final int DEFAULT_JETTY_HTTP_PORT = 8080;
+    private static final int DEFAULT_JETTY_HTTP_PORT = 8080;
 
-    private final int DEFAULT_JETTY_HTTPS_PORT = 8443;
+    private static final int DEFAULT_JETTY_HTTPS_PORT = 8443;
 
-    private boolean httpsEnabled;
-
+    @Getter
     private String httpProtocol;
 
+    @Getter
     private int restPort;
 
     public WebPropertiesLoader() {
         initializeRestProperties();
-        httpsEnabled = WebProperties.WEB_HTTPS.getValueAsBoolean();
+        boolean httpsEnabled = WebProperties.WEB_HTTPS.getValueAsBoolean();
         if (httpsEnabled) {
             httpProtocol = "https";
             restPort = getJettyHttpsPort();
@@ -55,14 +57,6 @@ public class WebPropertiesLoader {
             httpProtocol = "http";
             restPort = getJettyHttpPort();
         }
-    }
-
-    public String getHttpProtocol() {
-        return httpProtocol;
-    }
-
-    public int getRestPort() {
-        return restPort;
     }
 
     private void initializeRestProperties() {
@@ -89,7 +83,7 @@ public class WebPropertiesLoader {
         return DEFAULT_JETTY_HTTP_PORT;
     }
 
-    public int getJettyHttpsPort() {
+    private int getJettyHttpsPort() {
         if (WebProperties.WEB_HTTPS_PORT.isSet()) {
             return WebProperties.WEB_HTTPS_PORT.getValueAsInt();
         }
