@@ -25,7 +25,7 @@
  */
 package org.ow2.proactive.resourcemanager.nodesource.infrastructure.util;
 
-import org.ow2.proactive.scheduler.core.properties.PASchedulerProperties;
+import org.ow2.proactive.resourcemanager.core.properties.PAResourceManagerProperties;
 import org.ow2.proactive.web.WebProperties;
 
 
@@ -75,8 +75,8 @@ public class WebPropertiesLoader {
     }
 
     private String getSchedulerHome() {
-        if (PASchedulerProperties.SCHEDULER_HOME.isSet()) {
-            return PASchedulerProperties.SCHEDULER_HOME.getValueAsString();
+        if (PAResourceManagerProperties.RM_HOME.isSet()) {
+            return PAResourceManagerProperties.RM_HOME.getValueAsString();
         } else {
             return ".";
         }
