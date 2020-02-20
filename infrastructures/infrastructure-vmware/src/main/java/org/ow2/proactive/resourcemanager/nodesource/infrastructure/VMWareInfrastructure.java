@@ -25,8 +25,7 @@
  */
 package org.ow2.proactive.resourcemanager.nodesource.infrastructure;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 
@@ -97,7 +96,7 @@ public class VMWareInfrastructure extends AbstractAddonInfrastructure {
     @Override
     public void configure(Object... parameters) {
 
-        logger.info("Validating parameters : " + parameters);
+        logger.info("Validating parameters : " + Arrays.toString(parameters));
         validate(parameters);
 
         this.username = parameters[0].toString().trim();
