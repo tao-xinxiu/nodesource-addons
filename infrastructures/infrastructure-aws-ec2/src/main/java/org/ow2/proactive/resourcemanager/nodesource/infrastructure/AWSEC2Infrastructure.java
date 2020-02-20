@@ -25,8 +25,6 @@
  */
 package org.ow2.proactive.resourcemanager.nodesource.infrastructure;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.security.KeyException;
 import java.util.*;
 import java.util.AbstractMap.SimpleImmutableEntry;
@@ -156,13 +154,13 @@ public class AWSEC2Infrastructure extends AbstractAddonInfrastructure {
     @Configurable(description = "(optional) The subnet ID which is added to a specific Amazon VPC.", sectionSelector = 3)
     protected String subnetId = null;
 
-    @Configurable(description = "Resource Manager hostname or ip address (must be accessible from nodes)", sectionSelector = 4, important = true)
+    @Configurable(description = "Resource Manager hostname or ip address (must be accessible from nodes)", sectionSelector = 4)
     protected String rmHostname = generateDefaultRMHostname();
 
-    @Configurable(description = "Connector-iaas URL", sectionSelector = 4, important = true)
+    @Configurable(description = "Connector-iaas URL", sectionSelector = 4)
     protected String connectorIaasURL = LinuxInitScriptGenerator.generateDefaultIaasConnectorURL(generateDefaultRMHostname());
 
-    @Configurable(description = "URL used to download the node jar on the VM", sectionSelector = 4, important = true)
+    @Configurable(description = "URL used to download the node jar on the VM", sectionSelector = 4)
     protected String nodeJarURL = LinuxInitScriptGenerator.generateDefaultNodeJarURL(generateDefaultRMHostname());
 
     @Configurable(description = "(optional) Additional Java command properties (e.g. \"-Dpropertyname=propertyvalue\")", sectionSelector = 5)

@@ -111,13 +111,13 @@ public class OpenstackInfrastructure extends AbstractAddonInfrastructure {
     @Configurable(description = "Total nodes to create per instance", sectionSelector = 2, important = true)
     protected int numberOfNodesPerInstance = 1;
 
-    @Configurable(description = "Connector-iaas URL", sectionSelector = 4, important = true)
+    @Configurable(description = "Connector-iaas URL", sectionSelector = 4)
     protected String connectorIaasURL = LinuxInitScriptGenerator.generateDefaultIaasConnectorURL(generateDefaultRMHostname());
 
-    @Configurable(description = "Resource Manager hostname or ip address", sectionSelector = 4, important = true)
+    @Configurable(description = "Resource Manager hostname or ip address", sectionSelector = 4)
     protected String rmHostname = generateDefaultRMHostname();
 
-    @Configurable(description = "URL used to download the node jar on the instance", sectionSelector = 5, important = true)
+    @Configurable(description = "URL used to download the node jar on the instance", sectionSelector = 5)
     protected String nodeJarURL = LinuxInitScriptGenerator.generateDefaultNodeJarURL(generateDefaultRMHostname());
 
     @Configurable(description = "(optional) Additional Java command properties (e.g. \"-Dpropertyname=propertyvalue\")", sectionSelector = 5)

@@ -25,8 +25,6 @@
  */
 package org.ow2.proactive.resourcemanager.nodesource.infrastructure;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.security.KeyException;
 import java.util.*;
 import java.util.concurrent.Executors;
@@ -157,13 +155,13 @@ public class GCEInfrastructure extends AbstractAddonInfrastructure {
                                 ") The minimum number of CPU cores required for each virtual machine", sectionSelector = 3)
     protected int cores = DEFAULT_CORES;
 
-    @Configurable(description = "Resource manager hostname or ip address (must be accessible from nodes)", sectionSelector = 4, important = true)
+    @Configurable(description = "Resource manager hostname or ip address (must be accessible from nodes)", sectionSelector = 4)
     protected String rmHostname = generateDefaultRMHostname();
 
-    @Configurable(description = "Connector-iaas URL", sectionSelector = 4, important = true)
+    @Configurable(description = "Connector-iaas URL", sectionSelector = 4)
     protected String connectorIaasURL = LinuxInitScriptGenerator.generateDefaultIaasConnectorURL(generateDefaultRMHostname());
 
-    @Configurable(description = "URL used to download the node jar on the virtual machine", sectionSelector = 4, important = true)
+    @Configurable(description = "URL used to download the node jar on the virtual machine", sectionSelector = 4)
     protected String nodeJarURL = LinuxInitScriptGenerator.generateDefaultNodeJarURL(generateDefaultRMHostname());
 
     @Configurable(description = "(optional) Additional Java command properties (e.g. \"-Dpropertyname=propertyvalue\")", sectionSelector = 5)

@@ -39,10 +39,13 @@ public class LinuxInitScriptGenerator {
 
     private static Configuration nsConfig;
 
+    private static WebPropertiesLoader webConfig;
+
     static {
         try {
             // load configuration manager with the NodeSource properties file
             nsConfig = NSProperties.loadConfig();
+            webConfig = new WebPropertiesLoader();
         } catch (ConfigurationException e) {
             logger.error("Exception when loading NodeSource properties", e);
             throw new RuntimeException(e);
@@ -114,10 +117,9 @@ public class LinuxInitScriptGenerator {
         return "nohup " + javaCommand + javaProperties + "  &";
     }
 
-    public static String generateDefaultIaasConnectorURL(String DefaultRMHostname) {
+    public static String generateDefaultIaasConnectorURL(String rmHostname) {
         // I return the requested value while taking into account the configuration parameters
-        return nsConfig.getString(NSProperties.DEFAULT_PREFIX_CONNECTOR_IAAS_URL) + DefaultRMHostname +
-               nsConfig.getString(NSProperties.DEFAULT_SUFFIX_CONNECTOR_IAAS_URL);
+        return generateDefaultBaseURL(rmHostname) + nsConfig.getString(NSProperties.DEFAULT_SUFFIX_CONNECTOR_IAAS_URL);
     }
 
     public static String generateDefaultDownloadCommand(String rmHostname) {
@@ -125,6 +127,10 @@ public class LinuxInitScriptGenerator {
     }
 
     public static String generateDefaultNodeJarURL(String rmHostname) {
-        return rmHostname + nsConfig.getString(NSProperties.DEFAULT_SUFFIX_RM_TO_NODEJAR_URL);
+        return generateDefaultBaseURL(rmHostname) + nsConfig.getString(NSProperties.DEFAULT_SUFFIX_RM_TO_NODEJAR_URL);
+    }
+
+    public static String generateDefaultBaseURL(String hostname) {
+        return webConfig.getHttpProtocol() + "://" + hostname + ":" + webConfig.getRestPort();
     }
 }

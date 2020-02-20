@@ -203,10 +203,10 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
     @Configurable(description = "Optional graph endpoint from specific Azure environment", sectionSelector = 2)
     protected String graphEndpoint = null;
 
-    @Configurable(description = "Resource manager hostname or ip address (must be accessible from nodes)", sectionSelector = 3, important = true)
+    @Configurable(description = "Resource manager hostname or ip address (must be accessible from nodes)", sectionSelector = 3)
     protected String rmHostname = generateDefaultRMHostname();
 
-    @Configurable(description = "Connector-iaas URL", sectionSelector = 3, important = true)
+    @Configurable(description = "Connector-iaas URL", sectionSelector = 3)
     protected String connectorIaasURL = LinuxInitScriptGenerator.generateDefaultIaasConnectorURL(generateDefaultRMHostname());
 
     @Configurable(description = "Image (name or key)", sectionSelector = 5, important = true)
@@ -243,7 +243,7 @@ public class AzureInfrastructure extends AbstractAddonInfrastructure {
     // The variable is not longer effectively used, but it's kept temporarily to facilitate future support of deploying nodes on windows os VM
     protected String downloadCommand = null;
 
-    @Configurable(description = "URL used to download the node jar on the VM", sectionSelector = 7, important = true)
+    @Configurable(description = "URL used to download the node jar on the VM", sectionSelector = 7)
     protected String nodeJarURL = LinuxInitScriptGenerator.generateDefaultNodeJarURL(generateDefaultRMHostname());
 
     @Configurable(description = "Optional network CIDR to attach with new VM(s) (by default: '10.0.0.0/24')", sectionSelector = 6)

@@ -59,8 +59,6 @@ public class NSProperties {
 
     public static final String DEFAULT_SUFFIX_CONNECTOR_IAAS_URL = "ns.default.suffix.connector.iaas.url";
 
-    public static final String DEFAULT_PREFIX_CONNECTOR_IAAS_URL = "ns.default.prefix.connector.iaas.url";
-
     public static final String DEFAULT_JYTHON_PATH = "ns.default.jython.path";
 
     /**
